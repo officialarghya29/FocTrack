@@ -298,8 +298,31 @@ def delete_interruption(db: Session, user: User, interruption_id: int) -> dict:
         raise not_found("Interruption not found.")
     session_id = interruption.session_id
     db.delete(interruption)
-    db.commit()
+    db.flush()
+
     session = load_session(db, user, session_id)
+    if not SessionStatus(session.status).is_open:
+        # Closed sessions keep frozen totals. Removing an interruption must
+        # return that time to focused time instead of leaving the record
+        # internally inconsistent.
+        active = float(session.accumulated_active_seconds or 0.0)
+        interrupted = min(
+            active,
+            float(
+                db.scalar(
+                    select(func.coalesce(func.sum(Interruption.duration), 0.0)).where(
+                        Interruption.session_id == session_id
+                    )
+                )
+                or 0.0
+            ),
+        )
+        session.interrupted_duration = round(interrupted, 3)
+        session.focused_duration = round(max(0.0, active - interrupted), 3)
+        session.updated_at = utcnow()
+    db.commit()
+    db.refresh(session)
+    db.expire(session, ["interruptions"])
     return serialize_session(session)
 
 
@@ -323,8 +346,15 @@ def list_sessions(
         conditions.append(FocusSession.status == status_filter)
     if category_id is not None:
         conditions.append(FocusSession.category_id == category_id)
-    if search:
-        conditions.append(FocusSession.title.ilike(f"%{search.strip()}%"))
+    if search and search.strip():
+        # Treat user input literally: % and _ are search characters, not wildcards.
+        term = (
+            search.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        conditions.append(FocusSession.title.ilike(f"%{term}%", escape="\\"))
     if date_from is not None:
         conditions.append(FocusSession.started_at >= ensure_utc(date_from))
     if date_to is not None:

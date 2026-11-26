@@ -34,7 +34,7 @@ import {
 
 export function DashboardPage() {
   const { profile, notify, errorMessage, refreshAll } = useApp();
-  const { session: active } = useLiveSession();
+  const { session: active, focusedSeconds: activeFocusedSeconds } = useLiveSession();
 
   const overviewQuery = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   const categoriesQuery = useQuery({
@@ -120,7 +120,7 @@ export function DashboardPage() {
                 {active.status === "ACTIVE" ? "Session running" : "Session paused"}: {active.title}
               </p>
               <p className="text-[11px] text-muted">
-                {formatDuration(active.focusedSeconds)} focused · started{" "}
+                {formatDuration(activeFocusedSeconds)} focused · started{" "}
                 {formatTime(active.startedAt)}
               </p>
             </div>

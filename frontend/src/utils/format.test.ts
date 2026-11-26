@@ -31,6 +31,9 @@ describe("formatDuration", () => {
     expect(formatDuration(600)).toBe("10m");
     expect(formatDuration(3600)).toBe("1h");
     expect(formatDuration(3900)).toBe("1h 05m");
+    // 3599s rounded to 60 minutes must carry into an hour, not read "60m".
+    expect(formatDuration(3599)).toBe("1h");
+    expect(formatDuration(35999)).toBe("10h");
   });
 });
 
@@ -40,6 +43,7 @@ describe("formatHours", () => {
     expect(formatHours(900)).toBe("15m");
     expect(formatHours(5400)).toBe("1.5h");
     expect(formatHours(36000)).toBe("10h");
+    expect(formatHours(3599)).toBe("1h");
   });
 });
 

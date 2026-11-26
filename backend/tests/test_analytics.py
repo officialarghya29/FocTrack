@@ -57,10 +57,14 @@ def test_weekly_and_monthly_series(env):
 
     weekly = env.client.get("/api/v1/analytics/weekly?weeks=8").json()
     assert weekly["weeks"] == 8
-    assert len(weekly["points"]) == 3
+    # Eight contiguous calendar weeks, including weeks with no sessions.
+    assert len(weekly["points"]) == 8
+    assert weekly["points"][-1]["weekStart"] == "2026-11-23"
     assert sum(point["sessions"] for point in weekly["points"]) == 3
 
     monthly = env.client.get("/api/v1/analytics/monthly?months=3").json()
+    assert len(monthly["points"]) == 3
+    assert monthly["points"][0]["month"] == "2026-09"
     assert monthly["points"][-1]["month"] == "2026-11"
     assert monthly["points"][-1]["sessions"] == 2
 

@@ -26,6 +26,30 @@ const RANGES = [
   { days: 90, label: "90 days" },
 ];
 
+function PanelError({
+  label,
+  onRetry,
+}: {
+  label: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="rounded-md border border-danger/25 bg-danger/[0.04] px-3 py-4 text-[11px] text-muted"
+    >
+      {label} could not be loaded.
+      <button
+        type="button"
+        className="ml-2 underline decoration-line underline-offset-2 hover:text-ink"
+        onClick={onRetry}
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
 export function AnalyticsPage() {
   const { errorMessage } = useApp();
   const [days, setDays] = useState(30);
@@ -131,17 +155,32 @@ export function AnalyticsPage() {
 
         <section className="panel p-5 lg:col-span-4" aria-label="Category distribution">
           <SectionHeading title="Category split" hint="Share of focused time" />
-          <CategoryDonut slices={categories.data?.slices ?? []} />
+          {categories.isError ? (
+            <PanelError
+              label="The category split"
+              onRetry={() => void categories.refetch()}
+            />
+          ) : (
+            <CategoryDonut slices={categories.data?.slices ?? []} />
+          )}
         </section>
 
         <section className="panel p-5 lg:col-span-6" aria-label="Weekly focus">
           <SectionHeading title="Weekly totals" hint="Last 8 weeks" />
-          <WeeklyBars points={weekly.data?.points ?? []} />
+          {weekly.isError ? (
+            <PanelError label="Weekly totals" onRetry={() => void weekly.refetch()} />
+          ) : (
+            <WeeklyBars points={weekly.data?.points ?? []} />
+          )}
         </section>
 
         <section className="panel p-5 lg:col-span-6" aria-label="Monthly focus">
           <SectionHeading title="Monthly totals" hint="Last 6 months" />
-          <MonthlyBars points={monthly.data?.points ?? []} />
+          {monthly.isError ? (
+            <PanelError label="Monthly totals" onRetry={() => void monthly.refetch()} />
+          ) : (
+            <MonthlyBars points={monthly.data?.points ?? []} />
+          )}
         </section>
 
         <section className="panel p-5 lg:col-span-6" aria-label="Most productive time">
@@ -153,7 +192,9 @@ export function AnalyticsPage() {
                 : undefined
             }
           />
-          {insights.data ? (
+          {insights.isError ? (
+            <PanelError label="Productive windows" onRetry={() => void insights.refetch()} />
+          ) : insights.data ? (
             <TimeOfDayChart insights={insights.data} />
           ) : (
             <LoadingBlock label="Loading windows" />
@@ -176,7 +217,9 @@ export function AnalyticsPage() {
                 : undefined
             }
           />
-          {insights.data ? (
+          {insights.isError ? (
+            <PanelError label="Session lengths" onRetry={() => void insights.refetch()} />
+          ) : insights.data ? (
             <DurationDistributionChart insights={insights.data} />
           ) : (
             <LoadingBlock label="Loading distribution" />
@@ -198,7 +241,9 @@ export function AnalyticsPage() {
                 : undefined
             }
           />
-          {insights.data ? (
+          {insights.isError ? (
+            <PanelError label="Interruption reasons" onRetry={() => void insights.refetch()} />
+          ) : insights.data ? (
             <InterruptionReasons insights={insights.data} />
           ) : (
             <LoadingBlock label="Loading reasons" />

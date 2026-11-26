@@ -57,3 +57,11 @@ class ProfileUpdate(APIModel):
         if not cleaned:
             raise ValueError("Username cannot be empty.")
         return cleaned
+
+    @field_validator("email")
+    @classmethod
+    def normalise_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None

@@ -24,8 +24,8 @@ interface AppContextValue {
   profile: Profile | undefined;
   settingsLoading: boolean;
   profileLoading: boolean;
-  updateSettings: (patch: Partial<Omit<Settings, "updatedAt">>) => Promise<void>;
-  updateProfile: (patch: { username: string; email?: string | null }) => Promise<void>;
+  updateSettings: (patch: Partial<Omit<Settings, "updatedAt">>) => Promise<boolean>;
+  updateProfile: (patch: { username: string; email?: string | null }) => Promise<boolean>;
   notify: (message: string, tone?: ToastTone) => void;
   toasts: Toast[];
   dismissToast: (id: number) => void;
@@ -174,11 +174,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (patch: Partial<Omit<Settings, "updatedAt">>) => {
       try {
         await settingsMutation.mutateAsync(patch);
+        return true;
       } catch (error) {
         notify(errorMessage(error), "error");
         // Re-apply the server truth so the toggle does not lie.
         void queryClient.invalidateQueries({ queryKey: ["settings"] });
-        throw error;
+        return false;
       }
     },
     [errorMessage, notify, queryClient, settingsMutation]
@@ -189,9 +190,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         await profileMutation.mutateAsync(patch);
         notify("Profile updated.", "success");
+        return true;
       } catch (error) {
         notify(errorMessage(error), "error");
-        throw error;
+        return false;
       }
     },
     [errorMessage, notify, profileMutation]

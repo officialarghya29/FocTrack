@@ -18,6 +18,10 @@ export function useIdlePrompt(enabled: boolean, thresholdSeconds: number) {
       return;
     }
 
+    // Re-enabling starts a fresh window instead of inheriting stale idle time.
+    lastActivity.current = Date.now();
+    dismissed.current = false;
+
     const markActive = () => {
       lastActivity.current = Date.now();
       if (dismissed.current) dismissed.current = false;

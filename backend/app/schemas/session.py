@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.schemas.category import CategoryOut
 from app.schemas.common import APIModel
@@ -53,12 +53,30 @@ class SessionCreate(APIModel):
     target_duration: int | None = Field(default=None, ge=60, le=8 * 3600)
     notes: str | None = Field(default=None, max_length=1000)
 
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Session title cannot be empty.")
+        return cleaned
+
 
 class SessionUpdate(APIModel):
     title: str | None = Field(default=None, min_length=1, max_length=160)
     category_id: int | None = None
     notes: str | None = Field(default=None, max_length=1000)
     target_duration: int | None = Field(default=None, ge=60, le=8 * 3600)
+
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Session title cannot be empty.")
+        return cleaned
 
 
 class SessionListOut(APIModel):

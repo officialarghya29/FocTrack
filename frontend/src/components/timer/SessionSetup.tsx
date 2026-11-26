@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CircleDot, Clock3, Layers, ShieldCheck } from "lucide-react";
 import { api } from "../../services/api";
@@ -18,6 +18,19 @@ export function SessionSetup() {
   const [customMinutes, setCustomMinutes] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const appliedDefault = useRef(false);
+  const targetTouched = useRef(false);
+
+  // Settings load in parallel with the page. Apply the stored default exactly
+  // once, so a later refetch never overwrites a target the user just picked.
+  useEffect(() => {
+    if (!appliedDefault.current && settings) {
+      appliedDefault.current = true;
+      if (!targetTouched.current) {
+        setMinutes(Math.round(settings.defaultTargetDuration / 60));
+      }
+    }
+  }, [settings]);
 
   const mutation = useMutation({
     mutationFn: api.createSession,
@@ -120,6 +133,7 @@ export function SessionSetup() {
                   key={preset.minutes}
                   type="button"
                   onClick={() => {
+                    targetTouched.current = true;
                     setMinutes(preset.minutes);
                     setCustomMinutes("");
                   }}
@@ -143,6 +157,7 @@ export function SessionSetup() {
                   className="h-9 w-20 bg-transparent font-mono text-xs outline-none placeholder:text-muted/60"
                   value={customMinutes}
                   onChange={(event) => {
+                    targetTouched.current = true;
                     setCustomMinutes(event.target.value);
                     const parsed = Number.parseInt(event.target.value, 10);
                     if (!Number.isNaN(parsed) && parsed > 0) {

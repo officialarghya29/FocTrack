@@ -36,8 +36,6 @@ class Settings(BaseSettings):
     )
 
     # Bounds used by the validation layer.
-    max_session_title_length: int = 120
-    max_session_hours: int = 24
     analytics_max_days: int = 366
 
     @property

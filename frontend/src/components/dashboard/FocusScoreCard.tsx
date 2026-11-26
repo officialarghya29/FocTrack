@@ -48,7 +48,7 @@ function ScoreRing({ score }: { score: number }) {
 }
 
 export function FocusScoreCard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["analytics", "focus-score", 7],
     queryFn: () => api.focusScore(7),
   });
@@ -68,6 +68,19 @@ export function FocusScoreCard() {
       <div className="mt-4 flex flex-1 items-center gap-5">
         {isLoading ? (
           <div className="h-[132px] w-[132px] animate-pulse rounded-full bg-surface" />
+        ) : isError ? (
+          <div className="w-full">
+            <p className="text-[11px] leading-relaxed text-danger">
+              The focus score could not be loaded.
+            </p>
+            <button
+              type="button"
+              className="btn btn-sm mt-3"
+              onClick={() => void refetch()}
+            >
+              Retry
+            </button>
+          </div>
         ) : data?.score !== null && data?.score !== undefined ? (
           <>
             <ScoreRing score={data.score} />

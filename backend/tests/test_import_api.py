@@ -103,6 +103,35 @@ def test_import_handles_quoted_commas_and_alt_headers(env):
     assert session["notes"] == "Reviewed, approved"
 
 
+def test_import_derives_focus_only_when_the_column_is_absent(env):
+    csv_text = "\n".join(
+        [
+            HEADER,
+            "Zero focus,Research,2026-11-20T09:00:00Z,2026-11-20T09:30:00Z,0,0,COMPLETED,",
+            "Missing focus,Research,2026-11-20T11:00:00Z,2026-11-20T11:30:00Z,,5,COMPLETED,",
+        ]
+    )
+    response = upload(env.client, csv_text)
+    assert response.status_code == 200, response.text
+    assert response.json()["imported"] == 2
+
+    by_title = {
+        item["title"]: item
+        for item in env.client.get("/api/v1/sessions").json()["items"]
+    }
+    assert by_title["Zero focus"]["focusedSeconds"] == 0
+    assert by_title["Missing focus"]["focusedSeconds"] == 25 * 60
+    assert by_title["Missing focus"]["interruptedSeconds"] == 5 * 60
+
+
+def test_import_rejects_an_oversized_field(env):
+    huge = "x" * 200000
+    csv_text = f"title,started_at\n{huge},2026-11-20T09:00:00Z\n"
+    response = upload(env.client, csv_text)
+    assert response.status_code == 400
+    assert "Malformed CSV" in response.json()["detail"]
+
+
 def test_import_rejects_invalid_files(env):
     missing_column = upload(env.client, "title,category\nSomething,Research\n")
     assert missing_column.status_code == 400

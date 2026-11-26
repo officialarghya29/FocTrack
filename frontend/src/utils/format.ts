@@ -15,8 +15,9 @@ export function formatClock(totalSeconds: number): string {
 export function formatDuration(totalSeconds: number): string {
   const safe = Math.max(0, Math.round(totalSeconds));
   if (safe < 60) return `${safe}s`;
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.round((safe % 3600) / 60);
+  const totalMinutes = Math.round(safe / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
   if (hours === 0) return `${minutes}m`;
   if (minutes === 0) return `${hours}h`;
   return `${hours}h ${pad(minutes)}m`;
@@ -24,9 +25,13 @@ export function formatDuration(totalSeconds: number): string {
 
 /** Hours with one decimal, for axes: 1.5h */
 export function formatHours(totalSeconds: number): string {
-  const hours = totalSeconds / 3600;
+  const safe = Math.max(0, totalSeconds);
+  const hours = safe / 3600;
   if (hours === 0) return "0h";
-  if (hours < 1) return `${Math.round(totalSeconds / 60)}m`;
+  if (hours < 1) {
+    const minutes = Math.round(safe / 60);
+    return minutes >= 60 ? "1h" : `${minutes}m`;
+  }
   return `${hours.toFixed(hours >= 10 ? 0 : 1)}h`;
 }
 

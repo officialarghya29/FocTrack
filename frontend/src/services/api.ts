@@ -15,7 +15,9 @@ import type {
   WeeklyAnalytics,
 } from "../types";
 
-const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
+const RAW_BASE =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
+const BASE = RAW_BASE.replace(/\/+$/, "");
 
 export class ApiError extends Error {
   status: number;

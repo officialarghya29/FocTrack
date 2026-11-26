@@ -165,14 +165,14 @@ procedure: [`docs/deployment.md`](docs/deployment.md).
 | Charts | Recharts 2 | Responsive, labelled, with empty states |
 | Icons | Lucide React | Consistent 1.5px stroke set |
 | Server state | TanStack Query 5 | Caching, invalidation, optimistic sync |
-| Routing | React Router 6 | Five routes + 404 |
+| Routing | React Router 7 | Five routes + 404 |
 | Backend | Python 3.12 + FastAPI | OpenAPI at `/docs` |
 | Validation | Pydantic 2 | camelCase on the wire, snake_case in Python |
 | ORM | SQLAlchemy 2.0 | Typed mappings, explicit relationships |
 | Migrations | Alembic | Applied to `head` at startup |
 | Database | SQLite | File-backed, persistent disk in deployment |
-| Backend tests | Pytest + HTTPX TestClient | 53 tests |
-| Frontend tests | Vitest + Testing Library | 11 tests |
+| Backend tests | Pytest + HTTPX TestClient | 62 tests |
+| Frontend tests | Vitest + Testing Library | 13 tests |
 | Deployment | Vercel (frontend) + Render (API) | Config included, not deployed |
 | Delivery | Route-level code splitting | Chart library isolated in its own chunk |
 
@@ -382,7 +382,7 @@ No `.env` file is committed. Secrets never appear in the repository.
 
 ## Testing
 
-### Backend — 53 tests
+### Backend — 62 tests
 
 ```bash
 cd backend
@@ -398,20 +398,21 @@ import (valid rows, malformed rows, duplicates, quoted fields, limits) and
 health/OpenAPI endpoints. The suite uses an isolated SQLite file per test and a
 controllable clock, so no test sleeps or depends on wall time.
 
-Result on this machine: **53 passed**.
+Result on this machine: **62 passed**.
 
-### Frontend — 11 tests
+### Frontend — 13 tests
 
 ```bash
 cd frontend
 npm test
 ```
 
-Coverage includes time formatting, day boundaries, timer rendering and
-screen-reader status, required-title validation and session creation with the
-selected category and target.
+Coverage includes time formatting and rounding, day boundaries, timer rendering
+and screen-reader status, required-title validation, session creation with the
+selected category and target, dialog focus retention while a live timer
+re-renders the page, and removal of a finished session from the active cache.
 
-Result on this machine: **11 passed across 3 files**.
+Result on this machine: **13 passed across 5 files**.
 
 ### Production build
 
@@ -425,19 +426,19 @@ Result on this machine:
 ```
 dist/index.html                  0.89 kB │ gzip:   0.48 kB
 dist/assets/index-*.css         31.20 kB │ gzip:   6.99 kB
-dist/assets/index-*.js          30.31 kB │ gzip:   9.46 kB
-dist/assets/react-*.js         163.57 kB │ gzip:  53.38 kB
+dist/assets/index-*.js          30.40 kB │ gzip:   9.51 kB
+dist/assets/react-*.js         179.62 kB │ gzip:  59.05 kB
 dist/assets/query-*.js          42.09 kB │ gzip:  12.69 kB
 dist/assets/charts-*.js        424.70 kB │ gzip: 114.11 kB
-dist/assets/Dashboard-*.js      17.59 kB │ gzip:   5.44 kB
-dist/assets/Focus-*.js          26.96 kB │ gzip:   7.95 kB
-dist/assets/History-*.js        12.80 kB │ gzip:   4.05 kB
-dist/assets/Analytics-*.js      11.70 kB │ gzip:   3.67 kB
+dist/assets/Dashboard-*.js      17.86 kB │ gzip:   5.50 kB
+dist/assets/Focus-*.js          27.17 kB │ gzip:   7.99 kB
+dist/assets/History-*.js        12.85 kB │ gzip:   4.07 kB
+dist/assets/Analytics-*.js      12.50 kB │ gzip:   3.85 kB
 dist/assets/Settings-*.js       19.52 kB │ gzip:   6.02 kB
-✓ built in 2.79s
+✓ built in 2.98s
 ```
 
-Pages are loaded per route. Shell, React and TanStack Query total about 83 kB
+Pages are loaded per route. Shell, React and TanStack Query total about 88 kB
 gzipped; the 114 kB gzip chart chunk is fetched only by the Overview and
 Analytics routes.
 
@@ -483,10 +484,14 @@ No database, browser-render or deployment benchmarks are claimed.
 | Analytics from stored rows | Passed |
 | Frontend production build | Passed |
 | Frontend/backend integration | Passed (screenshots captured from the live pair) |
-| CSV import (valid and malformed rows) | Passed (7 dedicated tests) |
+| CSV import (valid and malformed rows) | Passed (9 dedicated tests) |
+| Dependency audit, production packages | Passed (0 known vulnerabilities) |
 | Dark and light themes | Rendered and visually checked |
 | Mobile layout (390 × 844) | Rendered and visually checked |
 | Deployed to Vercel/Render | **Not deployed** — configs and runbook provided |
+
+`npm audit --omit=dev` reports zero known vulnerabilities after the React
+Router 7 upgrade.
 
 ---
 
@@ -533,6 +538,10 @@ The current release has the following constraints.
 8. **No offline mode.** The UI requires the API; there is no service worker.
 9. **Import is session-level.** CSV rows create sessions with aggregate
    durations; individual interruptions are not reconstructed from CSV.
+10. **Historical days use the current UTC offset.** Analytics applies the
+    browser's present offset to past sessions, so a history spanning a daylight
+    saving change can shift an old day by one hour. Storing the offset per
+    session is the planned fix.
 
 ---
 

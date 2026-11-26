@@ -73,6 +73,11 @@ export function HistoryPage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtersActive = Boolean(search || categoryId || status || from || to);
 
+  // Deleting the last item on the final page must not strand the view there.
+  useEffect(() => {
+    if (page > 0 && page >= pageCount) setPage(pageCount - 1);
+  }, [page, pageCount]);
+
   const reset = () => {
     setSearchInput("");
     setSearch("");

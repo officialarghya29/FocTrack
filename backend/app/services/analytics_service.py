@@ -114,17 +114,37 @@ def daily_series(
     }
 
 
+def _week_start(day: date) -> date:
+    return day - timedelta(days=day.weekday())
+
+
+def _month_start(day: date, months_back: int) -> date:
+    index = day.year * 12 + (day.month - 1) - months_back
+    return date(index // 12, index % 12 + 1, 1)
+
+
 def weekly_series(db: Session, user: User, tz_offset_minutes: int, weeks: int) -> dict:
-    start, end, _ = _day_window(tz_offset_minutes, weeks * 7)
+    """Calendar weeks, current week last, with empty weeks included."""
+    today_local = _to_local(utcnow(), tz_offset_minutes).date()
+    current_week = _week_start(today_local)
+    first_week = current_week - timedelta(weeks=weeks - 1)
+    start = local_day_start(first_week, tz_offset_minutes)
+    end = local_day_start(current_week + timedelta(days=7), tz_offset_minutes)
     sessions = _completed_in(db, user.id, start, end)
 
-    buckets: dict[date, dict] = defaultdict(
-        lambda: {"focused_seconds": 0.0, "interrupted_seconds": 0.0, "sessions": 0}
-    )
+    buckets: dict[date, dict] = {
+        first_week + timedelta(weeks=index): {
+            "focused_seconds": 0.0,
+            "interrupted_seconds": 0.0,
+            "sessions": 0,
+        }
+        for index in range(weeks)
+    }
     for session in sessions:
         day = _to_local(session.started_at, tz_offset_minutes).date()
-        week_start = day - timedelta(days=day.weekday())
-        bucket = buckets[week_start]
+        bucket = buckets.get(_week_start(day))
+        if bucket is None:
+            continue
         bucket["focused_seconds"] += max(0.0, session.focused_duration or 0.0)
         bucket["interrupted_seconds"] += max(0.0, session.interrupted_duration or 0.0)
         bucket["sessions"] += 1
@@ -143,17 +163,29 @@ def weekly_series(db: Session, user: User, tz_offset_minutes: int, weeks: int) -
 
 
 def monthly_series(db: Session, user: User, tz_offset_minutes: int, months: int) -> dict:
-    days = months * 31
-    start, end, _ = _day_window(tz_offset_minutes, days)
+    """Calendar months, current month last, with empty months included."""
+    today_local = _to_local(utcnow(), tz_offset_minutes).date()
+    first_month = _month_start(today_local, months - 1)
+    next_month = _month_start(today_local, -1)
+    start = local_day_start(first_month, tz_offset_minutes)
+    end = local_day_start(next_month, tz_offset_minutes)
     sessions = _completed_in(db, user.id, start, end)
 
-    buckets: dict[str, dict] = defaultdict(
-        lambda: {"focused_seconds": 0.0, "interrupted_seconds": 0.0, "sessions": 0}
-    )
+    buckets: dict[str, dict] = {
+        f"{_month_start(first_month, -index).year:04d}-"
+        f"{_month_start(first_month, -index).month:02d}": {
+            "focused_seconds": 0.0,
+            "interrupted_seconds": 0.0,
+            "sessions": 0,
+        }
+        for index in range(months)
+    }
     for session in sessions:
         local_day = _to_local(session.started_at, tz_offset_minutes).date()
         key = f"{local_day.year:04d}-{local_day.month:02d}"
-        bucket = buckets[key]
+        bucket = buckets.get(key)
+        if bucket is None:
+            continue
         bucket["focused_seconds"] += max(0.0, session.focused_duration or 0.0)
         bucket["interrupted_seconds"] += max(0.0, session.interrupted_duration or 0.0)
         bucket["sessions"] += 1
@@ -344,8 +376,10 @@ def overview(db: Session, user: User, tz_offset_minutes: int) -> dict:
     week_points = week["points"]
     week_focused = sum(point["focused_seconds"] for point in week_points)
 
-    start_prev, end_prev, _ = _day_window(tz_offset_minutes, 14)
-    previous = _completed_in(db, user.id, start_prev, today_start - timedelta(days=7))
+    # The seven days immediately before the current seven-day window.
+    previous_start = local_day_start(today - timedelta(days=13), tz_offset_minutes)
+    previous_end = local_day_start(today - timedelta(days=6), tz_offset_minutes)
+    previous = _completed_in(db, user.id, previous_start, previous_end)
     prev_focused, _ = _sum_sessions(previous)
     change: float | None = None
     if prev_focused > 0:

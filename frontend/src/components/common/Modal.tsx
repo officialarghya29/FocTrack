@@ -25,6 +25,8 @@ export function Modal({
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -40,7 +42,7 @@ export function Modal({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
       if (event.key !== "Tab" || !panelRef.current) return;
       const items = Array.from(
@@ -66,7 +68,9 @@ export function Modal({
       document.body.style.overflow = overflow;
       previousFocus.current?.focus();
     };
-  }, [open, onClose]);
+    // Only opening the dialog should move focus. Parents re-render while a
+    // session timer ticks, so depending on `onClose` would steal it every tick.
+  }, [open]);
 
   if (!open) return null;
 

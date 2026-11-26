@@ -55,7 +55,8 @@ export function useSessionMutations(sessionId?: number) {
   const complete = useMutation({
     mutationFn: () => api.completeSession(sessionId!),
     onSuccess: (data) => {
-      sync(data.session);
+      // The session is closed: it must not stay in the active-session cache.
+      clear();
       notify(data.message, "success");
     },
     ...base,

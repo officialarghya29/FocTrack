@@ -183,7 +183,12 @@ def import_sessions_csv(db: Session, user: User, content: bytes) -> dict:
             return None
         return values[position]
 
-    for line_number, values in enumerate(reader, start=2):
+    try:
+        rows = list(reader)
+    except csv.Error as exc:
+        raise bad_request(f"Malformed CSV: {exc}.") from None
+
+    for line_number, values in enumerate(rows, start=2):
         if not any(value.strip() for value in values):
             continue
         data_rows += 1
@@ -221,7 +226,6 @@ def import_sessions_csv(db: Session, user: User, content: bytes) -> dict:
                 paused = _minutes_to_seconds(
                     cell(values, "paused_minutes"), "paused_minutes"
                 )
-            focused = focused or 0.0
             interrupted = interrupted or 0.0
             paused = paused or 0.0
 
@@ -232,17 +236,21 @@ def import_sessions_csv(db: Session, user: User, content: bytes) -> dict:
                 if wall < 0:
                     raise ValueError("ended_at is before started_at.")
             else:
-                ended_at = started_at + timedelta(seconds=focused + interrupted + paused)
-                wall = focused + interrupted + paused
+                wall = (focused or 0.0) + interrupted + paused
+                ended_at = started_at + timedelta(seconds=wall)
 
-            if focused == 0 and interrupted == 0 and wall > 0:
-                focused = wall
+            if focused is None:
+                # No focused column: infer it from the wall clock. Explicit
+                # zeros are respected instead of being turned into full focus.
+                focused = max(0.0, wall - interrupted - paused)
             if interrupted > wall:
                 raise ValueError("interrupted duration exceeds the session length.")
             if focused + interrupted > wall + 1:
                 raise ValueError("focused + interrupted exceeds the session length.")
 
             notes = (cell(values, "notes") or "").strip() or None
+            if notes is not None and len(notes) > 1000:
+                raise ValueError("notes exceed 1000 characters.")
 
             dedupe_key = (title.lower(), started_at)
             if dedupe_key in seen_keys:

@@ -200,8 +200,9 @@ export function SettingsPage() {
       notify("Notification permission was not granted, so the setting stays off.", "error");
       return;
     }
-    await updateSettings({ notificationsEnabled: true });
-    notify("Target reminders are on.", "success");
+    if (await updateSettings({ notificationsEnabled: true })) {
+      notify("Target reminders are on.", "success");
+    }
   };
 
   const saveProfile = async () => {

@@ -8,9 +8,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
+def normalize_database_url(value: str) -> str:
+    """Accept the DSN formats hosting providers hand out.
+
+    Providers export `postgres://` or `postgresql://` URLs, which SQLAlchemy
+    would otherwise resolve to the psycopg2 driver. This build ships psycopg 3,
+    so the driver is pinned explicitly.
+    """
+    url = value.strip()
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://") :]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
 
 
 class Settings(BaseSettings):
@@ -29,6 +45,11 @@ class Settings(BaseSettings):
     # data layer without touching application code.
     database_url: str = f"sqlite:///{BACKEND_DIR / 'focustrack.db'}"
 
+    @field_validator("database_url")
+    @classmethod
+    def _normalise_database_url(cls, value: str) -> str:
+        return normalize_database_url(value)
+
     # Comma separated list of allowed browser origins.
     cors_origins: str = (
         "http://localhost:5173,http://127.0.0.1:5173,"
@@ -37,6 +58,10 @@ class Settings(BaseSettings):
 
     # Bounds used by the validation layer.
     analytics_max_days: int = 366
+
+    @property
+    def is_postgres(self) -> bool:
+        return self.database_url.startswith("postgresql")
 
     @property
     def cors_origin_list(self) -> list[str]:

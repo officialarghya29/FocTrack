@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -8,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
+from app.core.config import normalize_database_url
 from app.database.base import Base
 from app.database.session import get_db
 from app.main import app
@@ -51,14 +53,23 @@ def clock(monkeypatch) -> FakeClock:
 
 @pytest.fixture
 def env(tmp_path, clock):
-    url = f"sqlite:///{tmp_path / 'test.db'}"
-    engine = create_engine(url, connect_args={"check_same_thread": False})
+    # The suite runs on SQLite by default. Set FOCTRACK_TEST_DATABASE_URL to a
+    # PostgreSQL DSN to run the identical assertions against the deployed
+    # dialect.
+    external_url = os.environ.get("FOCTRACK_TEST_DATABASE_URL")
+    if external_url:
+        url = normalize_database_url(external_url)
+        engine = create_engine(url, pool_pre_ping=True)
+        Base.metadata.drop_all(engine)
+    else:
+        url = f"sqlite:///{tmp_path / 'test.db'}"
+        engine = create_engine(url, connect_args={"check_same_thread": False})
 
-    @event.listens_for(engine, "connect")
-    def _fk(dbapi_connection, record):  # type: ignore[no-untyped-def]
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+        @event.listens_for(engine, "connect")
+        def _fk(dbapi_connection, record):  # type: ignore[no-untyped-def]
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
 
     Base.metadata.create_all(engine)
     with engine.begin() as connection:

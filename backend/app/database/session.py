@@ -14,7 +14,15 @@ def _engine_kwargs(url: str) -> dict:
         # The test suite and the local server share a single file; connection
         # sharing avoids "database is locked" under threaded requests.
         return {"connect_args": {"check_same_thread": False}}
-    return {"pool_pre_ping": True}
+    # Hosted PostgreSQL drops idle connections (and Neon suspends an idle
+    # compute), so stale connections are checked and recycled rather than
+    # surfacing as a 500 on the first request after a quiet period.
+    return {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+        "pool_size": 5,
+        "max_overflow": 5,
+    }
 
 
 engine = create_engine(settings.database_url, **_engine_kwargs(settings.database_url))

@@ -1,11 +1,12 @@
 # Render blueprint for the FocTrack API.
-# The SQLite file lives on a persistent disk so sessions survive deploys.
+# The service runs on the free plan, so the filesystem is ephemeral and the
+# data lives in an external PostgreSQL database (Neon free tier).
 services:
   - type: web
     name: foctrack-api
     runtime: python
     rootDir: backend
-    plan: starter
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/v1/health
@@ -14,11 +15,9 @@ services:
         value: 3.12.3
       - key: FOCTRACK_ENVIRONMENT
         value: production
+      # Set in the Render dashboard: the PostgreSQL DSN from the database host.
       - key: FOCTRACK_DATABASE_URL
-        value: sqlite:////var/data/focustrack.db
+        sync: false
+      # Set after the frontend is deployed, then redeploy the API.
       - key: FOCTRACK_CORS_ORIGINS
         sync: false
-    disk:
-      name: foctrack-data
-      mountPath: /var/data
-      sizeGB: 1

@@ -20,7 +20,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/officialarghya29/FocTrack">github.com/officialarghya29/FocTrack</a>
+  <a href="https://github.com/officialarghya29/FocTrack">github.com/officialarghya29/FocTrack</a><br />
+  <a href="https://foctrack.vercel.app">foctrack.vercel.app</a> ·
+  <a href="https://foctrack-api.onrender.com/docs">API documentation</a>
 </p>
 
 ---
@@ -47,7 +49,7 @@ habit game.
 | Measure, do not assume | Durations come from UTC timestamps, never from a ticking counter |
 | Separate focus from presence | Pauses and interruptions are tracked as distinct intervals |
 | Be honest about uncertainty | Empty states instead of fabricated statistics; insufficient-data instead of a fabricated score |
-| Local-first | Data lives in the user's own SQLite database; export and deletion are first-class actions |
+| Local-first | Data lives in your own single-user database, never a shared service; export and deletion are first-class actions |
 | Explain every number | The focus score has visible weights and a documented formula |
 | Visual restraint | One accent colour, minimal motion, no decorative dashboards |
 
@@ -142,8 +144,8 @@ built-in **demo mode** (40 sample sessions), which is labelled in the interface.
 
 The React client renders state and formats values; it never computes analytics.
 FastAPI owns the session lifecycle, validates every transition and aggregates
-the numbers. SQLAlchemy talks to SQLite through a database that is designed to
-move to PostgreSQL without touching application code.
+the numbers. SQLAlchemy sits behind a database layer that runs unchanged on
+SQLite locally and PostgreSQL in the hosted deployment.
 
 Full detail: [`docs/architecture.md`](docs/architecture.md). Deployment
 procedure: [`docs/deployment.md`](docs/deployment.md).
@@ -170,10 +172,10 @@ procedure: [`docs/deployment.md`](docs/deployment.md).
 | Validation | Pydantic 2 | camelCase on the wire, snake_case in Python |
 | ORM | SQLAlchemy 2.0 | Typed mappings, explicit relationships |
 | Migrations | Alembic | Applied to `head` at startup |
-| Database | SQLite | File-backed, persistent disk in deployment |
+| Database | SQLite / PostgreSQL | SQLite locally; serverless PostgreSQL in deployment |
 | Backend tests | Pytest + HTTPX TestClient | 62 tests |
-| Frontend tests | Vitest + Testing Library | 13 tests |
-| Deployment | Vercel (frontend) + Render (API) | Config included, not deployed |
+| Frontend tests | Vitest + Testing Library | 18 tests |
+| Deployment | Vercel (frontend) + Render (API) + Neon (database) | Live on free tiers |
 | Delivery | Route-level code splitting | Chart library isolated in its own chunk |
 
 ---
@@ -370,13 +372,42 @@ Copy `.env.example` to `backend/.env` and/or `frontend/.env`, then adjust:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `FOCTRACK_DATABASE_URL` | `sqlite:///backend/focustrack.db` | Database DSN |
+| `FOCTRACK_DATABASE_URL` | `sqlite:///backend/focustrack.db` | Database DSN; `postgres://` and `postgresql://` DSNs are accepted and use the psycopg 3 driver |
 | `FOCTRACK_ENVIRONMENT` | `development` | Environment label |
 | `FOCTRACK_CORS_ORIGINS` | local origins | Comma separated allowlist |
 | `VITE_API_BASE_URL` | `/api/v1` | API base for the built frontend |
 | `VITE_PROXY_TARGET` | `http://127.0.0.1:8000` | Dev proxy target |
 
 No `.env` file is committed. Secrets never appear in the repository.
+
+---
+
+## Live deployment
+
+| Component | Platform | URL |
+|---|---|---|
+| Web app | Vercel (static build) | https://foctrack.vercel.app |
+| API | Render free web service | https://foctrack-api.onrender.com |
+| API docs | FastAPI/Swagger on Render | https://foctrack-api.onrender.com/docs |
+| Database | Neon free PostgreSQL | private connection string, not in the repository |
+
+The deployment runs entirely on free tiers, which shapes the operational
+behaviour:
+
+* The Render service sleeps after 15 minutes without traffic. The next request
+  wakes it, which can take up to a minute; data is unaffected.
+* The Neon database suspends its compute when idle and resumes on the next
+  query. Connection pooling uses `pool_pre_ping` and a 300 second recycle, so a
+  suspended database resumes instead of surfacing a stale-connection error.
+* `FOCTRACK_DATABASE_URL` and `FOCTRACK_CORS_ORIGINS` are set in the Render
+  dashboard. The deployed frontend origin is the only allowed CORS origin.
+* Alembic migrations run on every boot, so the schema is versioned in
+  production exactly as it is locally.
+* Download the JSON export from Settings as a backup. Free Neon storage is
+  0.5 GB and the free Render service has no persistent disk.
+
+Step-by-step runbook, including CLI commands and verification:
+[`docs/deployment.md`](docs/deployment.md).
 
 ---
 
@@ -396,11 +427,14 @@ zero-activity completion, analytics aggregation, focus-score formula and
 insufficient data, category rules, settings validation, export, demo mode, CSV
 import (valid rows, malformed rows, duplicates, quoted fields, limits) and
 health/OpenAPI endpoints. The suite uses an isolated SQLite file per test and a
-controllable clock, so no test sleeps or depends on wall time.
+controllable clock, so no test sleeps or depends on wall time. Set
+`FOCTRACK_TEST_DATABASE_URL` to a PostgreSQL DSN to run the same assertions
+against the hosted dialect.
 
-Result on this machine: **62 passed**.
+Result on this machine: **62 passed** on SQLite and **62 passed** on
+PostgreSQL 16.
 
-### Frontend — 13 tests
+### Frontend — 18 tests
 
 ```bash
 cd frontend
@@ -410,9 +444,10 @@ npm test
 Coverage includes time formatting and rounding, day boundaries, timer rendering
 and screen-reader status, required-title validation, session creation with the
 selected category and target, dialog focus retention while a live timer
-re-renders the page, and removal of a finished session from the active cache.
+re-renders the page, removal of a finished session from the active cache, and
+the retry policy that tolerates a cold-starting API.
 
-Result on this machine: **13 passed across 5 files**.
+Result on this machine: **18 passed across 6 files**.
 
 ### Production build
 
@@ -483,12 +518,13 @@ No database, browser-render or deployment benchmarks are claimed.
 | Session lifecycle over HTTP | Passed (backend tests + manual smoke test) |
 | Analytics from stored rows | Passed |
 | Frontend production build | Passed |
-| Frontend/backend integration | Passed (screenshots captured from the live pair) |
+| Frontend/backend integration | Passed (local pair, then the deployed pair) |
+| PostgreSQL test run | Passed (62 tests, same assertions) |
 | CSV import (valid and malformed rows) | Passed (9 dedicated tests) |
 | Dependency audit, production packages | Passed (0 known vulnerabilities) |
 | Dark and light themes | Rendered and visually checked |
 | Mobile layout (390 × 844) | Rendered and visually checked |
-| Deployed to Vercel/Render | **Not deployed** — configs and runbook provided |
+| Deployed to Vercel/Render/Neon | Passed — [foctrack.vercel.app](https://foctrack.vercel.app), health and smoke checks run against the live pair |
 
 `npm audit --omit=dev` reports zero known vulnerabilities after the React
 Router 7 upgrade.
@@ -521,9 +557,10 @@ The current release has the following constraints.
 1. **Single local profile.** There is no authentication, so the app is not safe
    to expose publicly as a multi-user service. Every query is user-scoped, but
    the profile is implicit.
-2. **SQLite.** Fine for one person; not designed for concurrent writers at
-   scale. PostgreSQL portability is planned and the schema is compatible, but
-   the app has not been run against a live PostgreSQL instance.
+2. **Free-tier hosting.** The API sleeps after 15 minutes of inactivity, so the
+   first request afterwards can take up to a minute to wake it. The database is
+   a free Neon instance (0.5 GB) that suspends when idle. Fine for one person
+   recording sessions; not an always-on service.
 3. **Analytics aggregate in Python.** Correct and portable, but not the fastest
    approach for very large histories. Measured timings above reflect ~40 rows.
 4. **Reminders need an open tab.** Browser notifications fire only while the app
@@ -551,7 +588,6 @@ The following items are not implemented in 1.0 and are ordered by expected
 value.
 
 - Trim the chart chunk by replacing Recharts or lazy-mounting below-fold charts
-- PostgreSQL deployment profile and migration runbook
 - Weekly review view with goal setting and comparison
 - Optional account layer (passkeys or OAuth) with per-user isolation
 - Offline-first PWA shell with a sync queue

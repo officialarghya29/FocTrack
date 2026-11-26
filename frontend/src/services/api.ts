@@ -29,6 +29,29 @@ export class ApiError extends Error {
   }
 }
 
+const GATEWAY_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * Retry policy for read queries.
+ *
+ * The hosted API runs on a free tier that sleeps when idle, so the first
+ * request after a quiet period can fail with a gateway error or a network
+ * rejection while the service wakes. Those are worth retrying; a validation or
+ * conflict response is not.
+ */
+export function shouldRetryQuery(
+  failureCount: number,
+  error: unknown
+): boolean {
+  if (failureCount >= 4) return false;
+  if (error instanceof ApiError) return GATEWAY_STATUSES.has(error.status);
+  return true;
+}
+
+export function retryDelay(attempt: number): number {
+  return Math.min(1000 * 2 ** attempt, 8000);
+}
+
 type Query = Record<string, string | number | boolean | undefined | null>;
 
 function withQuery(path: string, query?: Query): string {

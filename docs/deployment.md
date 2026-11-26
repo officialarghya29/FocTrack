@@ -1,182 +1,196 @@
 # FocTrack — Deployment runbook
 
-**Current status: not deployed.** No hosting account or API token for Vercel,
-Render or Netlify exists in the development environment, so this document
-describes the exact procedure rather than a live URL. Add the resulting URLs to
-the README's deployment section once they exist.
+**Current status: deployed on free tiers.**
 
-Two components are deployed separately:
-
-| Component | Platform | Artifact |
+| Component | Platform | URL |
 |---|---|---|
-| API | Render (Python web service) | FastAPI + SQLite on a persistent disk |
-| Web app | Vercel (static) | Vite production build |
+| Web app | Vercel (static Vite build) | https://foctrack.vercel.app |
+| API | Render free web service | https://foctrack-api.onrender.com |
+| API docs | FastAPI / Swagger UI | https://foctrack-api.onrender.com/docs |
+| Database | Neon free PostgreSQL | connection string held in Render env vars only |
 
-Deploy the API first, because the frontend needs its origin at build time.
+The API and the web app deploy separately. The frontend inlines
+`VITE_API_BASE_URL` at build time, so a change to the API origin requires a
+frontend rebuild.
 
-## 1. API on Render
+## Architecture on free tiers
 
-The repository includes `render.yaml`, so the simplest path is a Blueprint.
+| Piece | Choice | Why |
+|---|---|---|
+| API host | Render free web service | No card required; sleeps when idle |
+| Database | Neon free PostgreSQL | Free plan does not expire, unlike Render's free Postgres, which is deleted 30 days after creation |
+| Static host | Vercel Hobby | Free, CDN-hosted, SPA rewrite included |
 
-1. Push the repository to GitHub.
-2. Render → **New → Blueprint** → select the repository → apply.
-3. Confirm these values:
+Render free services cannot attach a persistent disk, so the SQLite file used
+for local development cannot survive a deploy or a spin-down. That is why the
+deployed API points at PostgreSQL.
+
+## 1. Database (Neon)
+
+1. Create the project once:
+
+```bash
+neonctl projects create --name foctrack --region-id aws-us-west-2 --database focustrack
+```
+
+2. Copy the connection string from the output or the console
+   (Neon → project → **Connect**). It looks like:
+
+```
+postgresql://<role>:<password>@<endpoint>.<region>.aws.neon.tech/focustrack?sslmode=require
+```
+
+3. Store it only as the `FOCTRACK_DATABASE_URL` environment variable on Render.
+   The API accepts `postgres://` and `postgresql://` DSNs and pins the psycopg 3
+   driver itself, so the string can be pasted exactly as the provider prints it.
+
+No schema step is needed: the API runs `alembic upgrade head` on boot, creates
+the profile and seeds the eight default categories.
+
+## 2. API on Render
+
+The repository ships `render.yaml`, but the running service was created from the
+CLI, with these settings:
 
 | Setting | Value |
 |---|---|
+| Type / runtime | Web service / Python 3.12.3 |
 | Root directory | `backend` |
+| Plan | `free` |
+| Region | `oregon` |
 | Build command | `pip install -r requirements.txt` |
 | Start command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 | Health check path | `/api/v1/health` |
-| Disk mount | `/var/data`, 1 GB |
-| `FOCTRACK_DATABASE_URL` | `sqlite:////var/data/focustrack.db` |
 | `FOCTRACK_ENVIRONMENT` | `production` |
-| `FOCTRACK_CORS_ORIGINS` | your deployed frontend origin |
-| `PYTHON_VERSION` | `3.12.3` |
-| Plan | `starter` (required for the persistent disk) |
-
-`FOCTRACK_CORS_ORIGINS` is a comma-separated allowlist with no wildcard. Set it
-after the frontend URL is known, then redeploy the API.
-
-The Render free plan does not support persistent disks. The blueprint uses the
-`starter` plan so the SQLite file survives deploys; switch to an external
-PostgreSQL service if a free tier is mandatory, and note that this release has
-not been validated against live PostgreSQL.
-
-The service runs `alembic upgrade head` during startup, so the first boot
-creates the schema. A failed migration stops the service instead of serving a
-half-migrated database.
-
-Verify:
+| `FOCTRACK_DATABASE_URL` | the Neon DSN (secret, dashboard or CLI only) |
+| `FOCTRACK_CORS_ORIGINS` | `https://foctrack.vercel.app` |
 
 ```bash
-curl https://<api-host>/api/v1/health
+render workspace set <workspace-id>
+render services create \
+  --name foctrack-api --type web_service --runtime python --plan free \
+  --repo https://github.com/officialarghya29/FocTrack --branch main \
+  --root-directory backend --region oregon \
+  --build-command 'pip install -r requirements.txt' \
+  --start-command 'uvicorn app.main:app --host 0.0.0.0 --port $PORT' \
+  --health-check-path /api/v1/health \
+  --env-var FOCTRACK_ENVIRONMENT=production \
+  --env-var "FOCTRACK_DATABASE_URL=<neon-dsn>" \
+  --env-var FOCTRACK_CORS_ORIGINS=https://foctrack.vercel.app
+```
+
+Redeploy after a push (the CLI-created service is not wired to the GitHub
+webhook, so deploys are explicit):
+
+```bash
+render deploys create <service-id> --commit <sha> --confirm
+```
+
+The deployment is successful when `render deploys list` reports `live` and the
+health check returns 200.
+
+## 3. Frontend on Vercel
+
+```bash
+cd frontend
+vercel project create foctrack
+vercel link --yes --project foctrack
+printf 'https://foctrack-api.onrender.com/api/v1' | vercel env add VITE_API_BASE_URL production
+vercel deploy --prod --yes
+```
+
+`frontend/vercel.json` sets the framework, build command, output directory and
+the SPA rewrite, so deep links such as `/analytics` resolve to `index.html`.
+
+Rebuild whenever `VITE_API_BASE_URL` changes; the value is inlined into the
+bundle. To confirm the deployed bundle points at the right API:
+
+```bash
+curl -s https://foctrack.vercel.app | grep -o '/assets/index-[^"]*\.js'
+# then fetch that asset and search for the API host
+```
+
+## 4. Post-deploy verification
+
+Run these against the deployed pair, not localhost.
+
+```bash
+curl -s https://foctrack-api.onrender.com/api/v1/health
 # {"status":"ok","database":"ok",...}
+
+# CORS must echo the frontend origin
+curl -s -o /dev/null -D - -X OPTIONS \
+  https://foctrack-api.onrender.com/api/v1/sessions \
+  -H "Origin: https://foctrack.vercel.app" \
+  -H "Access-Control-Request-Method: POST" | grep -i access-control-allow-origin
+
+curl -s https://foctrack-api.onrender.com/api/v1/profile
+curl -s https://foctrack-api.onrender.com/api/v1/categories
 ```
 
-## 2. Frontend on Vercel
+Then, in the browser:
 
-1. Vercel → **Add New → Project** → import the repository.
-2. Root directory: `frontend`.
-3. Framework preset: Vite. Build: `npm run build`. Output: `dist`.
-4. Environment variable:
-
-```
-VITE_API_BASE_URL=https://<api-host>/api/v1
-```
-
-`frontend/vercel.json` provides the SPA rewrite so deep links such as
-`/analytics` resolve to `index.html`.
-
-Redeploy after changing the API origin. Rebuild the frontend whenever
-`VITE_API_BASE_URL` changes; Vite inlines it at build time.
-
-## 3. Post-deploy verification
-
-Run these against the deployed pair, not localhost:
-
-1. `GET /api/v1/health` returns `status: ok` and `database: ok`.
-2. The frontend loads, and Overview shows zeroed metrics with an empty state.
-3. Start a session, refresh the page, and confirm the timer continues from the
+1. The dashboard loads with empty states and zeroed metrics.
+2. Start a session, refresh, and confirm the timer continues from the
    server-reconciled duration.
-4. Pause, resume, log one interruption, finish, and check the summary numbers.
-5. Open Analytics and confirm the charts match the session just recorded.
-6. Export the JSON file and confirm it contains the session.
-7. `GET /docs` is reachable on the API host.
+3. Pause, resume, log one interruption, finish, and check the summary numbers.
+4. Open Analytics and confirm the charts match the session just recorded.
+5. Import a CSV from Settings and confirm the per-row error list for malformed
+   rows.
+6. Export JSON and confirm it contains the recorded session.
 
-## 4. Operational notes
+## 5. Operational notes
 
-* **Persistence:** the SQLite file lives on the Render disk. Without a disk the
-  database is lost on every deploy.
-* **Backups:** download the JSON export regularly. Render disk snapshots are a
-  paid feature; the export endpoint is the portable backup.
-* **Single profile:** the MVP has no authentication. Do not advertise the
-  deployment as a multi-user service. Restrict access or complete the account
-  layer before sharing it publicly.
-* **Scaling:** one instance only. Multiple workers against the same SQLite file
-  are not supported.
-* **Migrations:** always additive. Take an export before deploying a schema
-  change.
-* **CORS:** if the browser shows CORS errors, compare the exact frontend origin
-  (scheme + host + port) with `FOCTRACK_CORS_ORIGINS`.
+* **Cold starts.** The Render free service sleeps after 15 minutes without
+  inbound traffic and takes up to a minute to wake. The Neon compute suspends
+  when idle as well. The first request after a quiet period is slow, not broken.
+* **Connections.** The engine uses `pool_pre_ping` and a 300 second
+  `pool_recycle` so a suspended database resumes cleanly. Keep the pool small;
+  the free Neon plan has a bounded connection limit.
+* **Storage.** Free Neon provides 0.5 GB. Free Render services have an ephemeral
+  filesystem, so nothing is stored on disk in production.
+* **Backups.** Neon keeps six hours of branch history on the free plan, which
+  covers a bad deploy but not long-term retention. Download the JSON export from
+  Settings before schema changes.
+* **Single profile.** There is no authentication. Do not advertise the
+  deployment as a multi-user service.
+* **Scaling.** One API instance. Multiple workers are unnecessary for a
+  single-profile app and would only add database connections.
+* **CORS.** Compare the exact frontend origin (scheme, host, port) with
+  `FOCTRACK_CORS_ORIGINS`. After changing it, redeploy the API so the new
+  environment is loaded.
+* **Migrations.** Additive only. The API applies `head` on boot and fails the
+  boot if a migration fails, rather than serving a half-migrated schema.
 
-## 5. CLI-assisted deployment
+## 6. CLI reference
 
-The commit history and configs are ready to deploy from a terminal. If you want
-the deployment performed for you, install and authenticate both CLIs on this
-machine once; the credentials persist in your home directory and are never
-written into the repository.
-
-### Render
-
-Linux (this machine):
+Both CLIs are installed and authenticated under the repository owner's account.
 
 ```bash
+render --version && render whoami -o json
+vercel --version && vercel whoami
+```
+
+To perform this deployment from scratch:
+
+```bash
+# Render
 curl -fsSL raw.githubusercontent.com/render-oss/cli/refs/heads/main/bin/install.sh | sh
-# open a new terminal afterwards so `render` is on PATH
-render --version
-render login
-render whoami -o json
-```
+render login            # browser device flow; token stored in ~/.render/cli.yaml
+render workspace set <workspace-id>
 
-`render login` opens the dashboard in a browser, asks you to authorize the CLI
-and stores a CLI token in `~/.render/cli.yaml`. Select the workspace that owns
-the service when prompted (`render workspace set`).
-
-For headless or CI use, the CLI also accepts a Render API key:
-
-```bash
-export RENDER_API_KEY="rnd_..."   # current shell only; never commit it
-CI=true render whoami -o json
-```
-
-Once authenticated, the service can be created from the repository settings and
-deployed with the CLI (`render services create`, then
-`render deploys create <service-id> --confirm`). The exact flags are read from
-`render.yaml`; no credentials belong in that file.
-
-### Vercel
-
-```bash
+# Vercel
 npm install -g vercel@latest
-vercel --version
 vercel login
-vercel whoami
 ```
 
-`vercel login` uses a browser-based device flow and stores the session in your
-Vercel CLI config. For non-interactive use, `VERCEL_TOKEN` is read from the
-environment:
+For CI, both CLIs read `RENDER_API_KEY` and `VERCEL_TOKEN` from the environment.
+Never commit either token, and never put the database DSN in a tracked file.
 
-```bash
-export VERCEL_TOKEN="..."   # current shell only
-vercel whoami
-```
+## 7. Rollback
 
-From `frontend/`, link the project once and deploy:
-
-```bash
-vercel link
-vercel env add VITE_API_BASE_URL production   # paste the Render API origin
-vercel --prod
-```
-
-### Handy verification
-
-```bash
-render whoami -o json
-render services list -o json
-vercel whoami
-curl -s https://<api-host>/api/v1/health
-```
-
-Do not paste CLI tokens into chat, commit them, or add them to `.env.example`.
-If a token is exposed, revoke it in the Render or Vercel dashboard and log in
-again.
-
-## 6. Rollback
-
-1. Render → redeploy the previous commit.
-2. Vercel → promote the previous deployment.
+1. API: `render deploys create <service-id> --commit <previous-sha> --confirm`.
+2. Frontend: promote the previous deployment in the Vercel dashboard
+   (`vercel promote <deployment-url>`).
 3. If a migration must be reverted, restore the last JSON export into a fresh
    database rather than running an untested downgrade in production.

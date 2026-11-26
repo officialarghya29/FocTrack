@@ -8,7 +8,7 @@ analytics number. The database is the source of truth.
 Browser (React + Vite)
    │  JSON over HTTP, camelCase
    ▼
-FastAPI routers  →  services  →  repositories/SQLAlchemy  →  SQLite
+FastAPI routers  →  services  →  repositories/SQLAlchemy  →  SQLite / PostgreSQL
                        │
                        └── analytics aggregation + focus score
 ```
@@ -136,10 +136,19 @@ silently retries a mutation that could duplicate a session.
 
 ## Deployment topology
 
+The shipped deployment runs entirely on free tiers:
+
 * **Frontend:** static build on Vercel (`frontend/vercel.json` adds the SPA
-  rewrite). Set `VITE_API_BASE_URL` to the deployed API origin.
-* **Backend:** Render blueprint in `render.yaml`, SQLite on a mounted disk at
-  `/var/data`. Startup applies Alembic migrations to `head`.
-* **Database:** SQLite for the MVP. All models use portable types and the only
-  dialect-specific statement is the partial unique index, which PostgreSQL also
-  supports. The app has not been exercised against a live PostgreSQL instance.
+  rewrite). `VITE_API_BASE_URL` is inlined at build time.
+* **Backend:** Render free web service, configured by `render.yaml` and
+  provisioned through the Render CLI. Startup applies Alembic migrations to
+  `head`.
+* **Database:** Neon free PostgreSQL. Models use portable types and the only
+  dialect-specific statement is the partial unique index, which both engines
+  support. The suite runs against PostgreSQL with
+  `FOCTRACK_TEST_DATABASE_URL` set.
+
+Free web services cannot mount a persistent disk, so the hosted database is
+PostgreSQL rather than the SQLite file used locally. The engine normalises
+`postgres://` and `postgresql://` DSNs to the psycopg 3 driver and pre-pings
+pooled connections, because the hosted database suspends when idle.

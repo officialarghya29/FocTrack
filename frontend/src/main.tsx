@@ -4,12 +4,14 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { AppProvider } from "./context/AppContext";
+import { retryDelay, shouldRetryQuery } from "./services/api";
 import "./index.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: shouldRetryQuery,
+      retryDelay,
       staleTime: 15_000,
       refetchOnWindowFocus: false,
     },

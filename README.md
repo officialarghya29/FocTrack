@@ -19,26 +19,26 @@
   <a href="#testing">Testing</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/officialarghya29/FocTrack">github.com/officialarghya29/FocTrack</a>
+</p>
+
 ---
 
-## Why FocTrack exists
+## The problem
 
-Most timers measure attendance, not attention. A 50 minute Pomodoro can contain
-twelve minutes of phone checks and still be recorded as 50 minutes of work. The
-number looks productive and teaches you nothing.
+Most focus timers record elapsed time rather than attention. A 50 minute session
+containing twelve minutes of phone checks is still stored as 50 minutes, so the
+metric overstates real focus and offers no basis for improvement.
 
-FocTrack starts from a different premise:
+FocTrack separates focused time, interrupted time and paused time into distinct
+quantities. Each distraction is stored with a reason and a timestamp, producing
+a dataset that answers specific questions: which categories consume the most
+focused hours, when attention breaks, and whether sessions are completed.
 
-> **Time spent is not necessarily time focused.**
-
-Every session records focused time, interrupted time, pause time and the reason
-for each distraction. The result is a small, honest dataset you can actually
-learn from: which category consumes your best hours, when your attention breaks,
-and whether you finish what you start.
-
-FocTrack is deliberately small. It is not a social network, a subscription
-service, a team dashboard or a gamified habit app. It is a precision instrument
-for one person's attention.
+Scope is intentionally narrow: one local profile, no social features, no
+subscription layer, no team management. FocTrack is a measurement tool, not a
+habit game.
 
 ## Philosophy
 
@@ -46,10 +46,10 @@ for one person's attention.
 |---|---|
 | Measure, do not assume | Durations come from UTC timestamps, never from a ticking counter |
 | Separate focus from presence | Pauses and interruptions are tracked as distinct intervals |
-| Be honest about uncertainty | Empty states instead of fake statistics; insufficient-data instead of a fake score |
-| Local-first | Your data lives in your own SQLite database; export and deletion are one click away |
-| Explain every number | The focus score has visible weights and a written formula |
-| Quiet interface | One accent colour, restrained motion, no dashboard theatre |
+| Be honest about uncertainty | Empty states instead of fabricated statistics; insufficient-data instead of a fabricated score |
+| Local-first | Data lives in the user's own SQLite database; export and deletion are first-class actions |
+| Explain every number | The focus score has visible weights and a documented formula |
+| Visual restraint | One accent colour, minimal motion, no decorative dashboards |
 
 ---
 
@@ -101,13 +101,16 @@ target, target reminders (with real browser permission), completion tone,
 opt-in inactivity prompting, category management, JSON export, demo data mode
 and full history deletion.
 
+<p align="center">
+  <img src="assets/readme/feature-overview.svg" alt="Map of the five implemented modules" width="100%" />
+</p>
+
 ---
 
 ## Screenshots
 
-All screenshots are captured from the running application. The data shown comes
-from the built-in **demo mode** (40 sample sessions), which is visibly labelled
-in the interface. No screenshot is mocked.
+Screenshots are captured from the running application. The dataset shown is the
+built-in **demo mode** (40 sample sessions), which is labelled in the interface.
 
 ### Overview
 
@@ -396,12 +399,12 @@ Result on this machine:
 ```
 dist/index.html                  0.74 kB │ gzip:   0.43 kB
 dist/assets/index-*.css         30.81 kB │ gzip:   6.93 kB
-dist/assets/index-*.js         750.15 kB │ gzip: 210.36 kB
-✓ built in 3.03s
+dist/assets/index-*.js         750.51 kB │ gzip: 210.49 kB
+✓ built in 2.74s
 ```
 
-The JavaScript bundle is dominated by Recharts. Route-level code splitting is a
-documented next step, not a claimed optimisation.
+Recharts accounts for most of the bundle. Route-level code splitting is a
+planned next step (see Roadmap).
 
 ---
 
@@ -411,8 +414,8 @@ documented next step, not a claimed optimisation.
 
 Measured locally against the running API with **41 stored sessions**, using
 40 sequential requests per endpoint on loopback (`curl`, single machine,
-Python 3.12, SQLite). These are observations from one environment, not
-benchmarks you should generalise from.
+Python 3.12, SQLite). These are observations from one environment and do not
+constitute a general benchmark.
 
 | Endpoint | Mean response |
 |---|---|
@@ -465,14 +468,14 @@ No database, browser-render or deployment benchmarks are claimed.
 | Productivity trends | Varies | Yes |
 | Data ownership | Depends on product | Local-first |
 
-This is not a claim that FocTrack is objectively better than every productivity
-tool. A Pomodoro timer is a better fit if you only need a countdown.
+FocTrack is not positioned as universally superior. A simple countdown timer
+remains the more appropriate tool when only time-boxing is required.
 
 ---
 
 ## Limitations
 
-These are real, current constraints — not roadmap items disguised as features.
+The current release has the following constraints.
 
 1. **Single local profile.** There is no authentication, so the app is not safe
    to expose publicly as a multi-user service. Every query is user-scoped, but
@@ -484,20 +487,21 @@ These are real, current constraints — not roadmap items disguised as features.
    approach for very large histories. Measured timings above reflect ~40 rows.
 4. **Reminders need an open tab.** Browser notifications fire only while the app
    is running in a tab; there is no service worker or push backend.
-5. **No automatic inactivity logging.** Deliberate. The prompt asks first.
+5. **No automatic inactivity logging.** This is intentional: the interface
+   prompts before anything is recorded.
 6. **Focus score is a heuristic.** It is transparent, but it is not a validated
    psychological instrument.
 7. **Bundle size.** ~210 kB gzipped, mostly charting. Code splitting is not yet
    implemented.
 8. **No offline mode.** The UI requires the API; there is no service worker.
 9. **No import.** Export exists, import does not.
-10. **Screenshots show demo data**, explicitly labelled in-app.
 
 ---
 
 ## Roadmap
 
-Not implemented today; ordered by likely value.
+The following items are not implemented in 1.0 and are ordered by expected
+value.
 
 - Route-level code splitting to shrink the initial bundle
 - CSV import to complement JSON export
@@ -511,6 +515,11 @@ Not implemented today; ordered by likely value.
 
 ## Contributing
 
+FocTrack is proprietary software. Issues and suggestions are welcome. Code
+contributions require prior agreement with the author, and by submitting a pull
+request you confirm that you hold the rights to the contribution and assign them
+to the project owner.
+
 1. Fork the repository and create a branch: `feat/short-description`.
 2. Keep the layering intact: routes → services → models. No SQL in routers, no
    analytics in components.
@@ -522,8 +531,8 @@ cd backend && pytest
 cd frontend && npm test && npm run build
 ```
 
-5. Describe the behaviour change and the checks you ran. Please do not weaken
-   assertions or skip tests to make a build pass.
+5. Describe the behaviour change and the checks you ran. Pull requests must not
+   weaken assertions or skip tests to make a build pass.
 
 Bug reports should include reproduction steps, expected vs actual behaviour, and
 whether demo data was loaded.
@@ -532,8 +541,12 @@ whether demo data was loaded.
 
 ## License
 
-MIT © 2026 Arghya Bose. See [LICENSE](LICENSE).
+Copyright © 2026 Arghya Bose. **All rights reserved.**
+
+This repository is proprietary. No licence is granted to copy, modify,
+distribute or use the work without prior written permission. See
+[LICENSE](LICENSE) for the full terms and the permission contact.
 
 <p align="center">
-  <sub>Built to answer one question honestly: how much of this hour was actually focus?</sub>
+  <sub>FocTrack 1.0 · Local-first focus analytics</sub>
 </p>

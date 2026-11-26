@@ -227,8 +227,12 @@ export function SettingsPage() {
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
               <p className="text-[11px] text-muted">
-                Member for {profile.memberSinceDays} day
-                {profile.memberSinceDays === 1 ? "" : "s"} · {profile.totalSessions} sessions
+                {profile.memberSinceDays === 0
+                  ? "Joined today"
+                  : `Member for ${profile.memberSinceDays} day${
+                      profile.memberSinceDays === 1 ? "" : "s"
+                    }`}{" "}
+                · {profile.totalSessions} completed
               </p>
               <button type="button" className="btn btn-sm" onClick={() => void saveProfile()}>
                 Save profile
@@ -576,6 +580,16 @@ export function SettingsPage() {
                 remembers your theme preference.
               </p>
             </div>
+          </div>
+          <div className="mt-5 border-t border-line pt-4">
+            <a
+              href="https://github.com/officialarghya29/FocTrack"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-micro text-muted transition-colors hover:text-ink"
+            >
+              Source repository ↗
+            </a>
           </div>
         </section>
       </div>

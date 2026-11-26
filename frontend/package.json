@@ -2,6 +2,12 @@
   "name": "foctrack-frontend",
   "private": true,
   "version": "1.0.0",
+  "description": "FocTrack — measure your focus, master your time.",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/officialarghya29/FocTrack.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

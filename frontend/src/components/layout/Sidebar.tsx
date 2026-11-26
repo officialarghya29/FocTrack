@@ -130,7 +130,7 @@ export function Sidebar() {
             {profile?.username ?? "Focus User"}
           </p>
           <p className="mt-0.5 text-[11px] text-muted">
-            {profile ? `${profile.totalSessions} sessions stored` : "Loading…"}
+            {profile ? `${profile.totalSessions} completed` : "Loading…"}
           </p>
         </div>
         <ThemeToggle />

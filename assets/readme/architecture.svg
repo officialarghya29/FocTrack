@@ -11,9 +11,9 @@
     <text x="72" y="144" fill="#62DCEB" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2.4">PRESENTATION</text>
     <text x="72" y="172" fill="#F0F3F5" font-family="Inter, Helvetica, Arial, sans-serif" font-size="16" font-weight="600">React + Vite frontend</text>
 
-    <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#9BA7B1">
+    <g font-family="JetBrains Mono, monospace" font-size="10" fill="#9BA7B1">
       <rect x="72" y="196" width="240" height="34" rx="5" fill="#1A2026" stroke="#2A333A"/>
-      <text x="86" y="217">Routes · Dashboard / Focus / History</text>
+      <text x="86" y="217">Routes · Overview / Focus / History</text>
       <rect x="72" y="238" width="240" height="34" rx="5" fill="#1A2026" stroke="#2A333A"/>
       <text x="86" y="259">TanStack Query · server state</text>
       <rect x="72" y="280" width="240" height="34" rx="5" fill="#1A2026" stroke="#2A333A"/>
@@ -38,7 +38,7 @@
     <text x="445" y="144" fill="#B7F36B" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2.4">APPLICATION</text>
     <text x="445" y="172" fill="#F0F3F5" font-family="Inter, Helvetica, Arial, sans-serif" font-size="16" font-weight="600">FastAPI backend</text>
 
-    <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#9BA7B1">
+    <g font-family="JetBrains Mono, monospace" font-size="10" fill="#9BA7B1">
       <rect x="445" y="196" width="278" height="58" rx="5" fill="#1A2026" stroke="#2A333A"/>
       <text x="459" y="217">API layer · routers, validation,</text>
       <text x="459" y="235">status codes, ownership checks</text>
@@ -74,7 +74,7 @@
     <text x="856" y="144" fill="#F3B65D" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2.4">PERSISTENCE</text>
     <text x="856" y="172" fill="#F0F3F5" font-family="Inter, Helvetica, Arial, sans-serif" font-size="16" font-weight="600">SQLite → PostgreSQL</text>
 
-    <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#9BA7B1">
+    <g font-family="JetBrains Mono, monospace" font-size="10" fill="#9BA7B1">
       <rect x="856" y="196" width="272" height="30" rx="4" fill="#1A2026" stroke="#2A333A"/>
       <text x="870" y="216">users</text>
       <rect x="856" y="232" width="272" height="30" rx="4" fill="#1A2026" stroke="#2A333A"/>

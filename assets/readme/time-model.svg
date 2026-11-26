@@ -3,53 +3,47 @@
   <text x="48" y="52" fill="#F0F3F5" font-family="Inter, Helvetica, Arial, sans-serif" font-size="22" font-weight="600">Time model</text>
   <text x="48" y="76" fill="#9BA7B1" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2.4">WALL CLOCK IN · DERIVED DURATIONS OUT</text>
 
-  <!-- axis -->
-  <line x1="60" y1="250" x2="1040" y2="250" stroke="#2A333A"/>
+  <!-- timeline: 60 → 980 -->
+  <g font-family="JetBrains Mono, monospace" font-size="8" letter-spacing="0.6">
+    <rect x="60" y="180" width="220" height="40" fill="#B7F36B" fill-opacity="0.85"/>
+    <text x="170" y="205" fill="#0B0F0C" text-anchor="middle">FOCUSED</text>
+
+    <rect x="280" y="180" width="80" height="40" fill="#F07878" fill-opacity="0.8"/>
+    <text x="320" y="205" fill="#1A0B0B" text-anchor="middle">INTERRUPT</text>
+
+    <rect x="360" y="180" width="130" height="40" fill="#B7F36B" fill-opacity="0.85"/>
+    <text x="425" y="205" fill="#0B0F0C" text-anchor="middle">FOCUSED</text>
+
+    <rect x="490" y="180" width="90" height="40" fill="#1A2026" stroke="#3A444C" stroke-dasharray="4 3"/>
+    <text x="535" y="205" fill="#9BA7B1" text-anchor="middle">PAUSED</text>
+
+    <rect x="580" y="180" width="180" height="40" fill="#B7F36B" fill-opacity="0.85"/>
+    <text x="670" y="205" fill="#0B0F0C" text-anchor="middle">FOCUSED</text>
+
+    <rect x="760" y="180" width="60" height="40" fill="#F07878" fill-opacity="0.8"/>
+    <text x="790" y="205" fill="#1A0B0B" text-anchor="middle">INT.</text>
+
+    <rect x="820" y="180" width="160" height="40" fill="#B7F36B" fill-opacity="0.85"/>
+    <text x="900" y="205" fill="#0B0F0C" text-anchor="middle">FOCUSED</text>
+  </g>
+
+  <line x1="60" y1="240" x2="980" y2="240" stroke="#2A333A"/>
   <g font-family="JetBrains Mono, monospace" font-size="9" fill="#66727C">
-    <text x="60" y="272">t0 · start</text>
-    <text x="1010" y="272">t1 · now / close</text>
+    <text x="60" y="262">t0 · start</text>
+    <text x="980" y="262" text-anchor="end">t1 · now / close</text>
   </g>
 
-  <!-- segments: total width 980 from 60 to 1040 -->
-  <!-- focused 0-220 -->
-  <rect x="60" y="180" width="220" height="40" fill="#B7F36B" fill-opacity="0.85"/>
-  <!-- interruption 220-300 -->
-  <rect x="280" y="180" width="80" height="40" fill="#F07878" fill-opacity="0.8"/>
-  <!-- focused 300-430 -->
-  <rect x="360" y="180" width="130" height="40" fill="#B7F36B" fill-opacity="0.85"/>
-  <!-- paused 430-520 -->
-  <rect x="490" y="180" width="90" height="40" fill="#1A2026" stroke="#3A444C" stroke-dasharray="4 3"/>
-  <!-- focused 520-700 -->
-  <rect x="580" y="180" width="180" height="40" fill="#B7F36B" fill-opacity="0.85"/>
-  <!-- interruption 700-760 -->
-  <rect x="760" y="180" width="60" height="40" fill="#F07878" fill-opacity="0.8"/>
-  <!-- focused 760-980 -->
-  <rect x="820" y="180" width="160" height="40" fill="#B7F36B" fill-opacity="0.85"/>
-
-  <g font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1.4">
-    <text x="170" y="206" fill="#0B0F0C" text-anchor="middle">FOCUSED</text>
-    <text x="320" y="206" fill="#1A0B0B" text-anchor="middle">INTERRUPT</text>
-    <text x="425" y="206" fill="#0B0F0C" text-anchor="middle">FOCUSED</text>
-    <text x="535" y="160" fill="#9BA7B1" text-anchor="middle">PAUSED</text>
-    <text x="670" y="206" fill="#0B0F0C" text-anchor="middle">FOCUSED</text>
-    <text x="790" y="206" fill="#1A0B0B" text-anchor="middle">INTERRUPT</text>
-    <text x="900" y="206" fill="#0B0F0C" text-anchor="middle">FOCUSED</text>
-  </g>
-
-  <line x1="535" y1="168" x2="535" y2="180" stroke="#3A444C" stroke-dasharray="3 3"/>
-
-  <!-- legend blocks -->
   <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#9BA7B1">
-    <rect x="60" y="302" width="300" height="56" rx="6" fill="#14191E" stroke="#262E35"/>
-    <text x="76" y="324" fill="#F0F3F5" font-size="10">focused = Σ running intervals − Σ interruptions</text>
-    <text x="76" y="344" fill="#7E8A94" font-size="9">paused intervals never enter the sum</text>
+    <rect x="60" y="300" width="300" height="56" rx="6" fill="#14191E" stroke="#262E35"/>
+    <text x="76" y="322" fill="#F0F3F5" font-size="10">focused = active − interrupted</text>
+    <text x="76" y="342" fill="#7E8A94" font-size="9">paused intervals never enter either term</text>
 
-    <rect x="380" y="302" width="330" height="56" rx="6" fill="#14191E" stroke="#262E35"/>
-    <text x="396" y="324" fill="#F0F3F5" font-size="10">wall = close − start (includes pauses)</text>
-    <text x="396" y="344" fill="#7E8A94" font-size="9">shown for context, never used as focus</text>
+    <rect x="376" y="300" width="310" height="56" rx="6" fill="#14191E" stroke="#262E35"/>
+    <text x="392" y="322" fill="#F0F3F5" font-size="10">wall = close − start (includes pauses)</text>
+    <text x="392" y="342" fill="#7E8A94" font-size="9">shown for context, never used as focus</text>
 
-    <rect x="730" y="302" width="310" height="56" rx="6" fill="#14191E" stroke="#262E35"/>
-    <text x="746" y="324" fill="#F0F3F5" font-size="10">stored in UTC · bucketed locally</text>
-    <text x="746" y="344" fill="#7E8A94" font-size="9">day boundaries follow tzOffsetMinutes</text>
+    <rect x="702" y="300" width="338" height="56" rx="6" fill="#14191E" stroke="#262E35"/>
+    <text x="718" y="322" fill="#F0F3F5" font-size="10">stored in UTC · bucketed locally</text>
+    <text x="718" y="342" fill="#7E8A94" font-size="9">day boundaries follow tzOffsetMinutes</text>
   </g>
 </svg>

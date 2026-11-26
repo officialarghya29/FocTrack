@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 420" width="1100" height="420" role="img" aria-label="Focus score formula">
+  <rect width="1100" height="420" fill="#0C0F12"/>
+  <text x="48" y="52" fill="#F0F3F5" font-family="Inter, Helvetica, Arial, sans-serif" font-size="22" font-weight="600">The focus score</text>
+  <text x="48" y="76" fill="#9BA7B1" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2.4">EXPLAINABLE · BOUNDED 0–100 · INSUFFICIENT-DATA AWARE</text>
+
+  <rect x="48" y="104" width="1004" height="92" rx="8" fill="#14191E" stroke="#262E35"/>
+  <text x="76" y="146" fill="#F0F3F5" font-family="JetBrains Mono, monospace" font-size="18">Focus Score = 100 × ( 0.80 × <tspan fill="#62DCEB">FocusRatio</tspan> + 0.20 × <tspan fill="#A78BFA">ConsistencyRatio</tspan> )</text>
+  <text x="76" y="174" fill="#7E8A94" font-family="JetBrains Mono, monospace" font-size="11">clamped to [0, 100] · rounded to one decimal · window: last 7 days</text>
+
+  <!-- Focus ratio block -->
+  <g>
+    <rect x="48" y="224" width="486" height="152" rx="8" fill="#14191E" stroke="#262E35"/>
+    <rect x="48" y="224" width="4" height="152" rx="2" fill="#62DCEB"/>
+    <text x="76" y="256" fill="#62DCEB" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2">WEIGHT 0.80</text>
+    <text x="76" y="282" fill="#F0F3F5" font-family="Inter, Helvetica, Arial, sans-serif" font-size="15" font-weight="600">Focus ratio</text>
+    <text x="76" y="310" fill="#C6CFD6" font-family="JetBrains Mono, monospace" font-size="11">focused ÷ (focused + interrupted)</text>
+    <text x="76" y="334" fill="#7E8A94" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11">Uses completed sessions only. Paused time is excluded</text>
+    <text x="76" y="352" fill="#7E8A94" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11">from both sides of the ratio. Interruptions are capped at</text>
+    <text x="76" y="370" fill="#7E8A94" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11">the session's active time, so they cannot be double counted.</text>
+  </g>
+
+  <!-- Consistency block -->
+  <g>
+    <rect x="566" y="224" width="486" height="152" rx="8" fill="#14191E" stroke="#262E35"/>
+    <rect x="566" y="224" width="4" height="152" rx="2" fill="#A78BFA"/>
+    <text x="594" y="256" fill="#A78BFA" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2">WEIGHT 0.20</text>
+    <text x="594" y="282" fill="#F0F3F5" font-family="Inter, Helvetica, Arial, sans-serif" font-size="15" font-weight="600">Consistency ratio</text>
+    <text x="594" y="310" fill="#C6CFD6" font-family="JetBrains Mono, monospace" font-size="11">completed ÷ all sessions started</text>
+    <text x="594" y="334" fill="#7E8A94" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11">Cancelled sessions count in the denominator but their</text>
+    <text x="594" y="352" fill="#7E8A94" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11">partial durations never enter the focus ratio. A session</text>
+    <text x="594" y="370" fill="#7E8A94" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11">still running is not counted until it closes.</text>
+  </g>
+
+  <text x="48" y="402" fill="#66727C" font-family="JetBrains Mono, monospace" font-size="9.5">Unlocks after 3 completed sessions and 5 minutes of tracked activity. Reported as insufficient data before that.</text>
+</svg>

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" width="1280" height="400" role="img" aria-label="FocTrack — measure your focus, master your time">
+  <defs>
+    <radialGradient id="glow" cx="80%" cy="20%" r="70%">
+      <stop offset="0%" stop-color="#B7F36B" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#B7F36B" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#F0F3F5" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="400" fill="#0C0F12"/>
+  <rect width="1280" height="400" fill="url(#grid)"/>
+  <rect width="1280" height="400" fill="url(#glow)"/>
+
+  <g transform="translate(88 96)">
+    <circle cx="34" cy="34" r="33" fill="none" stroke="#39434B" stroke-width="2"/>
+    <path d="M34 1a33 33 0 0 1 33 33" fill="none" stroke="#F0F3F5" stroke-width="3" stroke-linecap="round"/>
+    <path d="M34 67A33 33 0 0 1 1 34" fill="none" stroke="#B7F36B" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="34" cy="34" r="16" fill="none" stroke="#5D6972" stroke-width="1.5"/>
+    <path d="M34 34V10" stroke="#B7F36B" stroke-width="4" stroke-linecap="round"/>
+    <path d="M34 34l15 9" stroke="#F0F3F5" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="34" cy="34" r="4.5" fill="#B7F36B"/>
+  </g>
+
+  <text x="188" y="124" fill="#F0F3F5" font-family="Inter, Helvetica, Arial, sans-serif" font-size="58" font-weight="600" letter-spacing="-2">Foc<tspan fill="#B7F36B">Track</tspan></text>
+  <text x="190" y="160" fill="#9BA7B1" font-family="JetBrains Mono, ui-monospace, monospace" font-size="13" letter-spacing="4.4">MEASURE YOUR FOCUS. MASTER YOUR TIME.</text>
+
+  <text x="189" y="212" fill="#C6CFD6" font-family="Inter, Helvetica, Arial, sans-serif" font-size="16">A focus tracker that separates time spent from time focused.</text>
+  <text x="189" y="236" fill="#7E8A94" font-family="Inter, Helvetica, Arial, sans-serif" font-size="14">Session-level interruption accounting, an explainable focus score, and analytics from real records.</text>
+
+  <g font-family="JetBrains Mono, ui-monospace, monospace" font-size="10" letter-spacing="2">
+    <rect x="189" y="270" width="126" height="28" rx="14" fill="none" stroke="#2A333A"/>
+    <text x="252" y="288" fill="#9BA7B1" text-anchor="middle">REACT + FASTAPI</text>
+    <rect x="327" y="270" width="112" height="28" rx="14" fill="none" stroke="#2A333A"/>
+    <text x="383" y="288" fill="#9BA7B1" text-anchor="middle">LOCAL-FIRST</text>
+    <rect x="451" y="270" width="136" height="28" rx="14" fill="none" stroke="#2A333A"/>
+    <text x="519" y="288" fill="#9BA7B1" text-anchor="middle">TIMESTAMP-BASED</text>
+  </g>
+
+  <g transform="translate(940 200)">
+    <circle r="150" fill="none" stroke="#1D242A" stroke-width="1"/>
+    <g stroke="#39434B" stroke-width="1.5">
+      <line x1="0" y1="-138" x2="0" y2="-128"/>
+      <line x1="97" y1="-97" x2="91" y2="-91"/>
+      <line x1="138" y1="0" x2="128" y2="0"/>
+      <line x1="97" y1="97" x2="91" y2="91"/>
+      <line x1="0" y1="138" x2="0" y2="128"/>
+      <line x1="-97" y1="97" x2="-91" y2="91"/>
+      <line x1="-138" y1="0" x2="-128" y2="0"/>
+      <line x1="-97" y1="-97" x2="-91" y2="-91"/>
+    </g>
+    <circle r="112" fill="none" stroke="#1D242A" stroke-width="1"/>
+    <circle r="112" fill="none" stroke="#B7F36B" stroke-width="3" stroke-linecap="round"
+            stroke-dasharray="470 704" transform="rotate(-90)"/>
+    <text y="-18" fill="#F0F3F5" font-family="JetBrains Mono, ui-monospace, monospace" font-size="46" text-anchor="middle">01:12:40</text>
+    <text y="10" fill="#B7F36B" font-family="JetBrains Mono, ui-monospace, monospace" font-size="10" letter-spacing="3" text-anchor="middle">IN FOCUS</text>
+
+    <g transform="translate(46 58)">
+      <text x="0" y="0" fill="#7E8A94" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1.6">INTERRUPTED</text>
+      <text x="0" y="18" fill="#F07878" font-family="JetBrains Mono, monospace" font-size="14">00:09:12</text>
+    </g>
+    <g transform="translate(-118 58)">
+      <text x="0" y="0" fill="#7E8A94" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1.6">FOCUS SCORE</text>
+      <text x="0" y="18" fill="#F0F3F5" font-family="JetBrains Mono, monospace" font-size="14">93.9</text>
+    </g>
+  </g>
+</svg>

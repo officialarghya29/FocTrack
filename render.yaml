@@ -1,0 +1,24 @@
+# Render blueprint for the FocTrack API.
+# The SQLite file lives on a persistent disk so sessions survive deploys.
+services:
+  - type: web
+    name: foctrack-api
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: FOCTRACK_ENVIRONMENT
+        value: production
+      - key: FOCTRACK_DATABASE_URL
+        value: sqlite:////var/data/focustrack.db
+      - key: FOCTRACK_CORS_ORIGINS
+        sync: false
+    disk:
+      name: foctrack-data
+      mountPath: /var/data
+      sizeGB: 1

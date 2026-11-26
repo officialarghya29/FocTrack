@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 400" width="1100" height="400" role="img" aria-label="FocTrack feature map">
+  <rect width="1100" height="400" fill="#0C0F12"/>
+  <text x="48" y="48" fill="#F0F3F5" font-family="Inter, Helvetica, Arial, sans-serif" font-size="20" font-weight="600">Implemented surface</text>
+  <text x="48" y="70" fill="#9BA7B1" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="2.4">FIVE MODULES · NO PLACEHOLDERS</text>
+
+  <g font-family="Inter, Helvetica, Arial, sans-serif">
+    <!-- card 1 -->
+    <rect x="48" y="96" width="192" height="256" rx="8" fill="#14191E" stroke="#262E35"/>
+    <text x="68" y="128" fill="#B7F36B" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="2">01 OVERVIEW</text>
+    <text x="68" y="156" fill="#F0F3F5" font-size="14" font-weight="600">Daily truth</text>
+    <g fill="#9BA7B1" font-size="11">
+      <text x="68" y="184">Focused today</text>
+      <text x="68" y="204">Interrupted today</text>
+      <text x="68" y="224">Session count + average</text>
+      <text x="68" y="244">7-day trend</text>
+      <text x="68" y="264">Focus score</text>
+      <text x="68" y="284">Top category</text>
+      <text x="68" y="304">Recent sessions</text>
+      <text x="68" y="324">Streak + week delta</text>
+    </g>
+
+    <!-- card 2 -->
+    <rect x="252" y="96" width="192" height="256" rx="8" fill="#14191E" stroke="#262E35"/>
+    <text x="272" y="128" fill="#BFF6B4" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="2">02 FOCUS</text>
+    <text x="272" y="156" fill="#F0F3F5" font-size="14" font-weight="600">Live timer</text>
+    <g fill="#9BA7B1" font-size="11">
+      <text x="272" y="184">Timestamp engine</text>
+      <text x="272" y="204">Pause / resume</text>
+      <text x="272" y="224">Target ring</text>
+      <text x="272" y="244">Interruption logging</text>
+      <text x="272" y="264">Refresh recovery</text>
+      <text x="272" y="284">Finish / cancel</text>
+      <text x="272" y="304">Session summary</text>
+      <text x="272" y="324">Optional idle prompt</text>
+    </g>
+
+    <!-- card 3 -->
+    <rect x="456" y="96" width="192" height="256" rx="8" fill="#14191E" stroke="#262E35"/>
+    <text x="476" y="128" fill="#62DCEB" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="2">03 HISTORY</text>
+    <text x="476" y="156" fill="#F0F3F5" font-size="14" font-weight="600">Searchable record</text>
+    <g fill="#9BA7B1" font-size="11">
+      <text x="476" y="184">Search by title</text>
+      <text x="476" y="204">Category filter</text>
+      <text x="476" y="224">Date range</text>
+      <text x="476" y="244">Status filter</text>
+      <text x="476" y="264">Duration sort</text>
+      <text x="476" y="284">Pagination</text>
+      <text x="476" y="304">Session detail</text>
+      <text x="476" y="324">Delete with confirm</text>
+    </g>
+
+    <!-- card 4 -->
+    <rect x="660" y="96" width="192" height="256" rx="8" fill="#14191E" stroke="#262E35"/>
+    <text x="680" y="128" fill="#A78BFA" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="2">04 ANALYTICS</text>
+    <text x="680" y="156" fill="#F0F3F5" font-size="14" font-weight="600">Patterns</text>
+    <g fill="#9BA7B1" font-size="11">
+      <text x="680" y="184">Daily / weekly / monthly</text>
+      <text x="680" y="204">Focus vs interruption</text>
+      <text x="680" y="224">Category distribution</text>
+      <text x="680" y="244">Duration distribution</text>
+      <text x="680" y="264">Best time windows</text>
+      <text x="680" y="284">Interruption reasons</text>
+      <text x="680" y="304">Consistency</text>
+      <text x="680" y="324">Range switching</text>
+    </g>
+
+    <!-- card 5 -->
+    <rect x="864" y="96" width="188" height="256" rx="8" fill="#14191E" stroke="#262E35"/>
+    <text x="884" y="128" fill="#F3B65D" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="2">05 SETTINGS</text>
+    <text x="884" y="156" fill="#F0F3F5" font-size="14" font-weight="600">Control</text>
+    <g fill="#9BA7B1" font-size="11">
+      <text x="884" y="184">Profile name</text>
+      <text x="884" y="204">Dark / light / system</text>
+      <text x="884" y="224">Accent colour</text>
+      <text x="884" y="244">Default target</text>
+      <text x="884" y="264">Reminders + tone</text>
+      <text x="884" y="284">Idle prompt</text>
+      <text x="884" y="304">Categories CRUD</text>
+      <text x="884" y="324">Export / delete data</text>
+    </g>
+  </g>
+</svg>

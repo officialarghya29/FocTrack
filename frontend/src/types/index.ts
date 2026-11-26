@@ -177,6 +177,19 @@ export interface CategoriesAnalytics {
   slices: CategorySlice[];
 }
 
+export interface ImportRowError {
+  row: number;
+  message: string;
+}
+
+export interface ImportSummary {
+  imported: number;
+  skipped: number;
+  categoriesCreated: number;
+  duplicateTitles: number;
+  errors: ImportRowError[];
+}
+
 export interface Insights {
   consistencyDays: number;
   consistencyPercent: number;

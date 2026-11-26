@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
@@ -10,12 +10,13 @@ import {
   Plus,
   ShieldCheck,
   Trash2,
+  Upload,
   Volume2,
   X,
 } from "lucide-react";
 import { api } from "../services/api";
 import { useApp } from "../context/AppContext";
-import type { Category } from "../types";
+import type { Category, ImportSummary } from "../types";
 import { ACCENT_SWATCHES, CATEGORY_COLORS } from "../utils/constants";
 import { PageHeader, SectionHeading } from "../components/common/Primitives";
 import { ConfirmDialog } from "../components/common/Modal";
@@ -80,6 +81,9 @@ export function SettingsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [confirmClearDemo, setConfirmClearDemo] = useState(false);
+  const [importResult, setImportResult] = useState<ImportSummary | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (profile) {
@@ -146,6 +150,26 @@ export function SettingsPage() {
       await refreshAll();
     },
     onError: (error) => notify(errorMessage(error), "error"),
+  });
+
+  const importCsv = useMutation({
+    mutationFn: api.importCsv,
+    onSuccess: async (result) => {
+      setImportResult(result);
+      setImportError(null);
+      notify(
+        result.skipped > 0
+          ? `Imported ${result.imported} sessions; skipped ${result.skipped}.`
+          : `Imported ${result.imported} sessions.`,
+        result.skipped > 0 ? "info" : "success"
+      );
+      await refreshAll();
+    },
+    onError: (error) => {
+      setImportResult(null);
+      setImportError(errorMessage(error));
+      notify(errorMessage(error), "error");
+    },
   });
 
   if (!settings || !profile) {
@@ -493,8 +517,8 @@ export function SettingsPage() {
         </section>
 
         <section className="panel p-5 xl:col-span-2">
-          <SectionHeading title="Data" hint="Export, demo mode, deletion" />
-          <div className="grid gap-4 md:grid-cols-3">
+          <SectionHeading title="Data" hint="Export, import, demo mode, deletion" />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-md border border-line p-4">
               <Download size={15} className="text-cyan" />
               <p className="mt-2 text-[13px] font-medium">Export everything</p>
@@ -505,6 +529,70 @@ export function SettingsPage() {
               <a href={api.exportUrl()} className="btn btn-sm mt-3 w-full" download>
                 Export JSON
               </a>
+            </div>
+
+            <div className="rounded-md border border-line p-4">
+              <Upload size={15} className="text-accent" />
+              <p className="mt-2 text-[13px] font-medium">Import CSV</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                Add completed sessions from a UTF-8 CSV. Malformed rows are reported by line and
+                skipped; valid rows are kept.
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="sr-only"
+                aria-label="Choose a CSV file to import"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) importCsv.mutate(file);
+                  event.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-sm mt-3 w-full"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importCsv.isPending}
+              >
+                {importCsv.isPending ? "Importing…" : "Choose CSV"}
+              </button>
+              <a
+                href={api.csvTemplateUrl()}
+                download
+                className="mt-2 block text-center text-[10px] text-muted underline decoration-line underline-offset-2 hover:text-ink"
+              >
+                Download template
+              </a>
+              {importError && (
+                <p role="alert" className="mt-2 text-[10px] leading-relaxed text-danger">
+                  {importError}
+                </p>
+              )}
+              {importResult && (
+                <div className="mt-2 rounded border border-line bg-base/60 px-2 py-1.5 text-[10px] leading-relaxed text-muted">
+                  <p>
+                    <span className="text-accent">{importResult.imported} imported</span>
+                    {" · "}
+                    {importResult.skipped} skipped
+                    {importResult.categoriesCreated > 0 &&
+                      ` · ${importResult.categoriesCreated} categories added`}
+                  </p>
+                  {importResult.errors.length > 0 && (
+                    <ul className="mt-1 space-y-0.5">
+                      {importResult.errors.slice(0, 3).map((item) => (
+                        <li key={`${item.row}-${item.message}`} className="text-danger/80">
+                          Row {item.row}: {item.message}
+                        </li>
+                      ))}
+                      {importResult.errors.length > 3 && (
+                        <li>+{importResult.errors.length - 3} more row errors</li>
+                      )}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="rounded-md border border-line p-4">

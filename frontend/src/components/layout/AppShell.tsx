@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
@@ -8,6 +9,7 @@ import { formatClock } from "../../utils/format";
 import { Link } from "react-router-dom";
 import { Moon, Sun } from "lucide-react";
 import { useApp } from "../../context/AppContext";
+import { LoadingBlock } from "../common/Primitives";
 
 function MobileThemeButton() {
   const { settings, updateSettings } = useApp();
@@ -64,7 +66,9 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <MobileTopBar />
         <main className="mx-auto w-full max-w-[1240px] flex-1 px-4 pb-28 pt-6 sm:px-8 sm:pt-8 lg:px-10 lg:pb-16 lg:pt-10">
-          <Outlet />
+          <Suspense fallback={<LoadingBlock label="Loading view" />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
       <MobileNav />

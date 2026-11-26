@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     categories,
     data,
     health,
+    imports,
     interruptions,
     sessions,
     settings,
@@ -20,3 +21,4 @@ api_router.include_router(categories.router)
 api_router.include_router(analytics.router)
 api_router.include_router(settings.router)
 api_router.include_router(data.router)
+api_router.include_router(imports.router)

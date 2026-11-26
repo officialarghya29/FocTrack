@@ -98,8 +98,8 @@ habit game.
 
 **Settings** include profile, dark/light/system theme, six accent colours, default
 target, target reminders (with real browser permission), completion tone,
-opt-in inactivity prompting, category management, JSON export, demo data mode
-and full history deletion.
+opt-in inactivity prompting, category management, JSON export, CSV import with
+row-level error reporting, demo data mode and full history deletion.
 
 <p align="center">
   <img src="assets/readme/feature-overview.svg" alt="Map of the five implemented modules" width="100%" />
@@ -145,7 +145,8 @@ FastAPI owns the session lifecycle, validates every transition and aggregates
 the numbers. SQLAlchemy talks to SQLite through a database that is designed to
 move to PostgreSQL without touching application code.
 
-Full detail: [`docs/architecture.md`](docs/architecture.md).
+Full detail: [`docs/architecture.md`](docs/architecture.md). Deployment
+procedure: [`docs/deployment.md`](docs/deployment.md).
 
 ### Session lifecycle
 
@@ -170,9 +171,10 @@ Full detail: [`docs/architecture.md`](docs/architecture.md).
 | ORM | SQLAlchemy 2.0 | Typed mappings, explicit relationships |
 | Migrations | Alembic | Applied to `head` at startup |
 | Database | SQLite | File-backed, persistent disk in deployment |
-| Backend tests | Pytest + HTTPX TestClient | 46 tests |
+| Backend tests | Pytest + HTTPX TestClient | 53 tests |
 | Frontend tests | Vitest + Testing Library | 11 tests |
 | Deployment | Vercel (frontend) + Render (API) | Config included, not deployed |
+| Delivery | Route-level code splitting | Chart library isolated in its own chunk |
 
 ---
 
@@ -284,11 +286,34 @@ All responses are camelCase JSON; all timestamps are ISO-8601 UTC.
 | `GET` | `/analytics/focus-score` | Score plus components |
 | `GET` | `/analytics/insights` | Distributions and reasons |
 | `GET` | `/export` | Full JSON export download |
+| `GET` | `/import/csv/template` | Download the CSV import template |
+| `POST` | `/import/csv` | Import sessions from CSV (multipart file) |
 | `DELETE` | `/data` | Delete all sessions |
 | `POST` | `/demo/seed` · `DELETE /demo` | Add / remove labelled demo data |
 
 Analytics endpoints accept `tzOffsetMinutes` (JavaScript
 `Date.prototype.getTimezoneOffset()` convention).
+
+### CSV import format
+
+`POST /api/v1/import/csv` accepts a UTF-8 `.csv` file (maximum 2 MB, 5,000 data
+rows). Download the template from `GET /api/v1/import/csv/template`.
+
+| Column | Required | Notes |
+|---|---|---|
+| `title` | Yes | Up to 160 characters |
+| `started_at` | Yes | ISO-8601; timestamps without an offset are treated as UTC |
+| `ended_at` | No | Derived from durations when absent |
+| `category` | No | Matched case-insensitively; unknown names are created |
+| `focused_minutes` / `focused_seconds` | No | Defaults to the wall duration when both durations are absent |
+| `interrupted_minutes` / `interrupted_seconds` | No | Cannot exceed the session length |
+| `paused_minutes` / `paused_seconds` | No | Included in wall time only |
+| `status` | No | `COMPLETED` (default) or `CANCELLED` |
+| `notes` | No | Free text |
+
+Each row produces one closed session; imports never create an open session.
+Malformed rows are skipped and returned with their line numbers, while valid
+rows are committed. Duplicate title/start pairs inside one file are rejected.
 
 ---
 
@@ -357,7 +382,7 @@ No `.env` file is committed. Secrets never appear in the repository.
 
 ## Testing
 
-### Backend — 46 tests
+### Backend — 53 tests
 
 ```bash
 cd backend
@@ -368,11 +393,12 @@ pytest
 Coverage includes session creation, duplicate-open prevention, pause/resume
 cycles, interruption math, timezone bucketing, invalid transitions,
 zero-activity completion, analytics aggregation, focus-score formula and
-insufficient data, category rules, settings validation, export, demo mode and
+insufficient data, category rules, settings validation, export, demo mode, CSV
+import (valid rows, malformed rows, duplicates, quoted fields, limits) and
 health/OpenAPI endpoints. The suite uses an isolated SQLite file per test and a
 controllable clock, so no test sleeps or depends on wall time.
 
-Result on this machine: **46 passed**.
+Result on this machine: **53 passed**.
 
 ### Frontend — 11 tests
 
@@ -397,14 +423,23 @@ npm run build
 Result on this machine:
 
 ```
-dist/index.html                  0.74 kB │ gzip:   0.43 kB
-dist/assets/index-*.css         30.81 kB │ gzip:   6.93 kB
-dist/assets/index-*.js         750.51 kB │ gzip: 210.49 kB
-✓ built in 2.74s
+dist/index.html                  0.89 kB │ gzip:   0.48 kB
+dist/assets/index-*.css         31.20 kB │ gzip:   6.99 kB
+dist/assets/index-*.js          30.31 kB │ gzip:   9.46 kB
+dist/assets/react-*.js         163.57 kB │ gzip:  53.38 kB
+dist/assets/query-*.js          42.09 kB │ gzip:  12.69 kB
+dist/assets/charts-*.js        424.70 kB │ gzip: 114.11 kB
+dist/assets/Dashboard-*.js      17.59 kB │ gzip:   5.44 kB
+dist/assets/Focus-*.js          26.96 kB │ gzip:   7.95 kB
+dist/assets/History-*.js        12.80 kB │ gzip:   4.05 kB
+dist/assets/Analytics-*.js      11.70 kB │ gzip:   3.67 kB
+dist/assets/Settings-*.js       19.52 kB │ gzip:   6.02 kB
+✓ built in 2.79s
 ```
 
-Recharts accounts for most of the bundle. Route-level code splitting is a
-planned next step (see Roadmap).
+Pages are loaded per route. Shell, React and TanStack Query total about 83 kB
+gzipped; the 114 kB gzip chart chunk is fetched only by the Overview and
+Analytics routes.
 
 ---
 
@@ -448,9 +483,10 @@ No database, browser-render or deployment benchmarks are claimed.
 | Analytics from stored rows | Passed |
 | Frontend production build | Passed |
 | Frontend/backend integration | Passed (screenshots captured from the live pair) |
+| CSV import (valid and malformed rows) | Passed (7 dedicated tests) |
 | Dark and light themes | Rendered and visually checked |
 | Mobile layout (390 × 844) | Rendered and visually checked |
-| Deployed to Vercel/Render | **Not deployed** — configs are provided |
+| Deployed to Vercel/Render | **Not deployed** — configs and runbook provided |
 
 ---
 
@@ -491,10 +527,12 @@ The current release has the following constraints.
    prompts before anything is recorded.
 6. **Focus score is a heuristic.** It is transparent, but it is not a validated
    psychological instrument.
-7. **Bundle size.** ~210 kB gzipped, mostly charting. Code splitting is not yet
-   implemented.
+7. **Charts dominate the chart payload.** Recharts is isolated in a 114 kB gzip
+   chunk that only the Overview and Analytics routes fetch. Replacing it with a
+   lighter renderer remains a candidate optimization.
 8. **No offline mode.** The UI requires the API; there is no service worker.
-9. **No import.** Export exists, import does not.
+9. **Import is session-level.** CSV rows create sessions with aggregate
+   durations; individual interruptions are not reconstructed from CSV.
 
 ---
 
@@ -503,8 +541,7 @@ The current release has the following constraints.
 The following items are not implemented in 1.0 and are ordered by expected
 value.
 
-- Route-level code splitting to shrink the initial bundle
-- CSV import to complement JSON export
+- Trim the chart chunk by replacing Recharts or lazy-mounting below-fold charts
 - PostgreSQL deployment profile and migration runbook
 - Weekly review view with goal setting and comparison
 - Optional account layer (passkeys or OAuth) with per-user isolation

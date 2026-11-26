@@ -4,6 +4,7 @@ import type {
   Category,
   DailyAnalytics,
   FocusScore,
+  ImportSummary,
   Insights,
   MonthlyAnalytics,
   Overview,
@@ -11,7 +12,6 @@ import type {
   Session,
   SessionList,
   Settings,
-  Theme,
   WeeklyAnalytics,
 } from "../types";
 
@@ -44,18 +44,7 @@ export function tzOffset(): number {
   return new Date().getTimezoneOffset();
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
-    ...options,
-  });
-
+async function parseResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) {
     return undefined as T;
   }
@@ -73,6 +62,20 @@ async function request<T>(
   }
 
   return payload as T;
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const response = await fetch(`${BASE}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers ?? {}),
+    },
+    ...options,
+  });
+  return parseResponse<T>(response);
 }
 
 function safeJson(text: string): unknown {
@@ -179,6 +182,14 @@ export const api = {
       method: "DELETE",
     }),
   exportUrl: () => `${BASE}/export`,
-
-  setTheme: (theme: Theme) => theme,
+  csvTemplateUrl: () => `${BASE}/import/csv/template`,
+  importCsv: async (file: File): Promise<ImportSummary> => {
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(`${BASE}/import/csv`, {
+      method: "POST",
+      body: form,
+    });
+    return parseResponse<ImportSummary>(response);
+  },
 };

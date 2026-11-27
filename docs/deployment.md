@@ -108,8 +108,12 @@ vercel deploy --prod --yes
 the SPA rewrite, so deep links such as `/analytics` resolve to `index.html`.
 
 The project is connected to the GitHub repository with `vercel git connect`, so
-a push to `main` starts a production build. CLI deploys remain available for a
-build you want to ship without a commit.
+a push to `main` starts a production build. The Vercel project root is the
+repository root, which is why the repository also has a root `vercel.json`: it
+installs and builds in `frontend/` and serves `frontend/dist`. CLI deploys run
+from `frontend/` and use that directory's configuration. Keep the two files
+consistent when the build changes. CLI deploys remain available for a build you
+want to ship without a commit.
 
 Rebuild whenever `VITE_API_BASE_URL` changes; the value is inlined into the
 bundle. To confirm the deployed bundle points at the right API:

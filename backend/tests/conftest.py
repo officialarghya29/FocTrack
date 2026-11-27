@@ -184,6 +184,7 @@ def record_completed_session(
     cancel: bool = False,
     category_id: int | None = None,
     interruptions: list[tuple[str, int]] | None = None,
+    tz_offset_minutes: int | None = None,
 ) -> dict:
     """Create a finished session with exact durations using the fake clock."""
     clock = env.clock
@@ -191,6 +192,8 @@ def record_completed_session(
     payload = {"title": title}
     if category_id is not None:
         payload["categoryId"] = category_id
+    if tz_offset_minutes is not None:
+        payload["tzOffsetMinutes"] = tz_offset_minutes
     session = start_session(env.client, **payload)
     session_id = session["id"]
 

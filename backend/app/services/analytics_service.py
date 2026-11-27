@@ -29,16 +29,31 @@ def _to_local(ts: datetime, tz_offset_minutes: int) -> datetime:
     return ts + timedelta(minutes=-tz_offset_minutes)
 
 
+def _session_local(session: FocusSession, tz_offset_minutes: int) -> datetime:
+    """Place a session on the clock its owner was on when it started.
+
+    Rows written before offsets were stored fall back to the request offset, so
+    older histories keep their previous behaviour.
+    """
+    stored = session.tz_offset_minutes
+    offset = tz_offset_minutes if stored is None else stored
+    return _to_local(session.started_at, offset)
+
+
 def _sessions_between(
-    db: Session, user_id: int, start: datetime, end: datetime
+    db: Session, user_id: int, start: datetime, end: datetime, pad_days: int = 0
 ) -> list[FocusSession]:
+    # A session can sit just outside the UTC window yet land inside the first
+    # local day. Padding the query and keeping only in-range buckets keeps such
+    # rows without widening the reported totals for non-bucketed aggregates.
+    pad = timedelta(days=pad_days)
     stmt = (
         select(FocusSession)
         .options(joinedload(FocusSession.category), selectinload(FocusSession.interruptions))
         .where(
             FocusSession.user_id == user_id,
-            FocusSession.started_at >= start,
-            FocusSession.started_at < end,
+            FocusSession.started_at >= start - pad,
+            FocusSession.started_at < end + pad,
         )
         .order_by(FocusSession.started_at.asc())
     )
@@ -46,9 +61,13 @@ def _sessions_between(
 
 
 def _completed_in(
-    db: Session, user_id: int, start: datetime, end: datetime
+    db: Session, user_id: int, start: datetime, end: datetime, pad_days: int = 0
 ) -> list[FocusSession]:
-    return [s for s in _sessions_between(db, user_id, start, end) if s.status == COMPLETED]
+    return [
+        s
+        for s in _sessions_between(db, user_id, start, end, pad_days=pad_days)
+        if s.status == COMPLETED
+    ]
 
 
 def _day_window(tz_offset_minutes: int, days: int) -> tuple[datetime, datetime, date]:
@@ -74,7 +93,7 @@ def daily_series(
     db: Session, user: User, tz_offset_minutes: int, days: int
 ) -> dict:
     start, end, first_day = _day_window(tz_offset_minutes, days)
-    sessions = _completed_in(db, user.id, start, end)
+    sessions = _completed_in(db, user.id, start, end, pad_days=1)
 
     buckets: dict[date, dict] = {
         first_day + timedelta(days=index): {
@@ -85,7 +104,7 @@ def daily_series(
         for index in range(days)
     }
     for session in sessions:
-        day = _to_local(session.started_at, tz_offset_minutes).date()
+        day = _session_local(session, tz_offset_minutes).date()
         bucket = buckets.get(day)
         if bucket is None:
             continue
@@ -130,7 +149,7 @@ def weekly_series(db: Session, user: User, tz_offset_minutes: int, weeks: int) -
     first_week = current_week - timedelta(weeks=weeks - 1)
     start = local_day_start(first_week, tz_offset_minutes)
     end = local_day_start(current_week + timedelta(days=7), tz_offset_minutes)
-    sessions = _completed_in(db, user.id, start, end)
+    sessions = _completed_in(db, user.id, start, end, pad_days=1)
 
     buckets: dict[date, dict] = {
         first_week + timedelta(weeks=index): {
@@ -141,7 +160,7 @@ def weekly_series(db: Session, user: User, tz_offset_minutes: int, weeks: int) -
         for index in range(weeks)
     }
     for session in sessions:
-        day = _to_local(session.started_at, tz_offset_minutes).date()
+        day = _session_local(session, tz_offset_minutes).date()
         bucket = buckets.get(_week_start(day))
         if bucket is None:
             continue
@@ -169,7 +188,7 @@ def monthly_series(db: Session, user: User, tz_offset_minutes: int, months: int)
     next_month = _month_start(today_local, -1)
     start = local_day_start(first_month, tz_offset_minutes)
     end = local_day_start(next_month, tz_offset_minutes)
-    sessions = _completed_in(db, user.id, start, end)
+    sessions = _completed_in(db, user.id, start, end, pad_days=1)
 
     buckets: dict[str, dict] = {
         f"{_month_start(first_month, -index).year:04d}-"
@@ -181,7 +200,7 @@ def monthly_series(db: Session, user: User, tz_offset_minutes: int, months: int)
         for index in range(months)
     }
     for session in sessions:
-        local_day = _to_local(session.started_at, tz_offset_minutes).date()
+        local_day = _session_local(session, tz_offset_minutes).date()
         key = f"{local_day.year:04d}-{local_day.month:02d}"
         bucket = buckets.get(key)
         if bucket is None:
@@ -299,7 +318,7 @@ def time_of_day(sessions: list[FocusSession], tz_offset_minutes: int) -> dict:
         for label, _, _ in TIME_BANDS
     ]
     for session in sessions:
-        hour = _to_local(session.started_at, tz_offset_minutes).hour
+        hour = _session_local(session, tz_offset_minutes).hour
         for index, (_, start, end) in enumerate(TIME_BANDS):
             if start <= hour < end:
                 buckets[index]["focused_seconds"] += max(
@@ -346,9 +365,9 @@ def focus_score(db: Session, user: User, tz_offset_minutes: int, days: int) -> d
 
 def _streak(db: Session, user: User, tz_offset_minutes: int) -> int:
     start, end, _ = _day_window(tz_offset_minutes, 120)
-    sessions = _completed_in(db, user.id, start, end)
+    sessions = _completed_in(db, user.id, start, end, pad_days=1)
     active_days = {
-        _to_local(s.started_at, tz_offset_minutes).date()
+        _session_local(s, tz_offset_minutes).date()
         for s in sessions
         if (s.focused_duration or 0.0) > 0
     }
@@ -470,7 +489,7 @@ def insights(db: Session, user: User, tz_offset_minutes: int, days: int = 30) ->
     completed = [s for s in sessions if s.status == COMPLETED]
 
     active_days = {
-        _to_local(s.started_at, tz_offset_minutes).date()
+        _session_local(s, tz_offset_minutes).date()
         for s in completed
         if (s.focused_duration or 0.0) > 0
     }
@@ -478,7 +497,7 @@ def insights(db: Session, user: User, tz_offset_minutes: int, days: int = 30) ->
 
     by_day: dict[date, float] = defaultdict(float)
     for session in completed:
-        by_day[_to_local(session.started_at, tz_offset_minutes).date()] += max(
+        by_day[_session_local(session, tz_offset_minutes).date()] += max(
             0.0, session.focused_duration or 0.0
         )
     best_day = None

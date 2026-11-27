@@ -34,6 +34,9 @@
 
 ### Fixed
 
+* Sessions store the browser's timezone offset at creation, so analytics keep a
+  historical day on the date it actually happened after a daylight-saving
+  change. Older rows fall back to the request offset.
 * Two access tokens issued in the same second are now distinct (`jti`).
 * Unknown-email logins take the same password-hashing path as wrong-password
   logins.

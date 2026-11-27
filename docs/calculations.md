@@ -97,7 +97,7 @@ scientifically validated psychological measurement, and the UI says so.
 | Duplicate start requests | Service check plus unique partial index → `409` |
 | Deleting a category | Sessions remain, uncategorized |
 | Deleting a session | Cascades to interruptions; analytics recalculated |
-| Timezone offset changes | Every analytics request carries the current browser offset; stored timestamps never change |
+| Timezone offset changes | The offset is stored with each session when it starts and used for day/hour buckets; the request offset only defines the window. Legacy rows without a stored offset fall back to it |
 | Interruption longer than active time | Clipped to active time, focused time floors at zero |
 | Empty database | All analytics return zeroed series, empty slices and `insufficient_data` |
 

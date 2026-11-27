@@ -309,7 +309,9 @@ except `/health`, `/health/ready` and `/auth/*` requires
 | `POST` | `/demo/seed` · `DELETE /demo` | Add / remove labelled demo data |
 
 Analytics endpoints accept `tzOffsetMinutes` (JavaScript
-`Date.prototype.getTimezoneOffset()` convention).
+`Date.prototype.getTimezoneOffset()` convention) to define the window. Each
+session also stores the offset it started under, and that stored value decides
+its calendar day and hour.
 
 ### CSV import format
 
@@ -616,10 +618,10 @@ The current release has the following constraints.
    Authenticated API responses are explicitly never cached.
 10. **Import is session-level.** CSV rows create sessions with aggregate
     durations; individual interruptions are not reconstructed from CSV.
-11. **Historical days use the current UTC offset.** Analytics applies the
-    browser's present offset to past sessions, so a history spanning a daylight
-    saving change can shift an old day by one hour. Storing the offset per
-    session is the planned fix.
+11. **Legacy sessions have no stored offset.** Sessions now record the
+    browser offset they started under, so analytics keep historical days stable
+    across daylight-saving changes. Rows created before this column existed fall
+    back to the offset supplied with the request and can still shift by an hour.
 
 ---
 

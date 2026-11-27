@@ -88,8 +88,11 @@ See [calculations.md](calculations.md) for the exact formulas.
 ## Analytics
 
 Analytics are computed from completed sessions inside a local-time window.
-The client sends `tzOffsetMinutes` (JavaScript `getTimezoneOffset()`), which
-lets the API bucket by the user's calendar day exactly.
+The client sends `tzOffsetMinutes` (JavaScript `getTimezoneOffset()`) for the
+window itself, and each session stores the offset it started under. Historical
+days are therefore bucketed with the clock the user was actually on, so a
+daylight-saving change cannot move an old session to another date. Sessions
+created before the offset was recorded fall back to the request offset.
 
 Aggregation is done in Python over the rows in the requested window. This
 keeps one implementation for SQLite and PostgreSQL, and avoids dialect-specific

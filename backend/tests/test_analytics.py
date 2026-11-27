@@ -166,6 +166,26 @@ def test_timezone_bucketing_shifts_day_boundary(env):
     assert ist_points["2026-11-25"]["focusedSeconds"] == 0
 
 
+def test_stored_offset_keeps_the_historical_day_after_a_clock_change(env):
+    session = record_completed_session(env, minutes=30, tz_offset_minutes=-330)
+    with env.Session() as db:
+        row = db.get(FocusSession, session["id"])
+        assert row is not None
+        row.started_at = datetime(2026, 11, 25, 20, 30, tzinfo=timezone.utc)
+        row.ended_at = row.started_at + timedelta(minutes=30)
+        db.commit()
+
+    # The viewer has since moved to UTC, but the session keeps the offset it
+    # started under, so 20:30 UTC still counts as the 26th in India.
+    shifted = env.client.get("/api/v1/analytics/daily?days=2&tzOffsetMinutes=0").json()
+    points = {point["date"]: point for point in shifted["points"]}
+    assert points["2026-11-26"]["focusedSeconds"] == 1800
+    assert points["2026-11-25"]["focusedSeconds"] == 0
+
+    insights = env.client.get("/api/v1/analytics/insights?days=30&tzOffsetMinutes=0").json()
+    assert insights["bestDay"]["date"] == "2026-11-26"
+
+
 def test_insights_report_time_of_day_and_reasons(env):
     record_completed_session(
         env, minutes=40, interruptions=[("phone", 60), ("phone", 30), ("social_media", 120)]

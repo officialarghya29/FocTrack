@@ -121,6 +121,7 @@ def create_session(db: Session, user: User, payload: SessionCreate) -> dict:
         notes=payload.notes,
         status=SessionStatus.ACTIVE.value,
         started_at=now,
+        tz_offset_minutes=payload.tz_offset_minutes,
         target_duration=payload.target_duration,
         last_resumed_at=now,
     )

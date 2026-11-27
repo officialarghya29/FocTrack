@@ -322,7 +322,11 @@ export const api = {
     categoryId?: number | null;
     targetDuration?: number | null;
     notes?: string | null;
-  }) => request<Session>("/sessions", { method: "POST", ...body(data) }),
+  }) =>
+    request<Session>("/sessions", {
+      method: "POST",
+      ...body({ ...data, tzOffsetMinutes: tzOffset() }),
+    }),
   updateSession: (
     id: number,
     data: { title?: string; categoryId?: number | null; notes?: string | null }

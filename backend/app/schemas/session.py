@@ -52,6 +52,9 @@ class SessionCreate(APIModel):
     category_id: int | None = None
     target_duration: int | None = Field(default=None, ge=60, le=8 * 3600)
     notes: str | None = Field(default=None, max_length=1000)
+    # Date.getTimezoneOffset() from the browser, stored with the session so a
+    # daylight-saving change cannot move historical sessions to another day.
+    tz_offset_minutes: int | None = Field(default=None, ge=-840, le=840)
 
     @field_validator("title")
     @classmethod

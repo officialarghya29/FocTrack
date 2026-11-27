@@ -113,6 +113,10 @@ class FocusSession(Base):
 
     started_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, index=True)
     ended_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True, index=True)
+    # Browser offset at the time the session started (JavaScript convention).
+    # Null on rows created before this was recorded; analytics then falls back
+    # to the offset supplied with the request.
+    tz_offset_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     target_duration: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

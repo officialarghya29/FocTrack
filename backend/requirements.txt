@@ -8,7 +8,7 @@ pydantic-settings==2.7.0
 python-dateutil==2.9.0.post0
 python-multipart==0.0.31
 PyJWT==2.15.0
-google-auth==2.37.0
+google-auth==2.63.1
 pytest==9.0.3
 httpx==0.28.1
 ruff==0.8.6

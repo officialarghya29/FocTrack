@@ -4,7 +4,7 @@ import json
 
 from fastapi import APIRouter, Depends
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import Response
+from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import current_user
@@ -25,6 +25,18 @@ def export_data(db: Session = Depends(get_db), user: User = Depends(current_user
         media_type="application/json",
         headers={
             "Content-Disposition": f'attachment; filename="foctrack-export-{stamp}.json"'
+        },
+    )
+
+
+@router.get("/export/csv", response_class=PlainTextResponse)
+def export_csv(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    stamp = utcnow().strftime("%Y%m%d-%H%M")
+    return PlainTextResponse(
+        content=backup_service.export_sessions_csv(db, user),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="foctrack-sessions-{stamp}.csv"'
         },
     )
 

@@ -4,6 +4,11 @@
 
 ### Added
 
+* Installable PWA: manifest, 192/512/maskable icons, offline app shell and a
+  service worker that never caches authenticated API responses.
+* CSV session export (`GET /export/csv`) with the same column names the importer
+  accepts, alongside the existing JSON export.
+
 * Real accounts: email + password registration and login, optional Google
   sign-in, scrypt hashing, short-lived access tokens and rotating refresh tokens.
 * Full per-account isolation, proved by automated tests across sessions,

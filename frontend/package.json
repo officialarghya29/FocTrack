@@ -1,7 +1,7 @@
 {
   "name": "foctrack-frontend",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "FocTrack — measure your focus, master your time.",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -39,6 +39,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "~5.7.2",
     "vite": "^5.4.11",
+    "vite-plugin-pwa": "^0.21.2",
     "vitest": "^2.1.8"
   }
 }

@@ -25,7 +25,7 @@ interface AppContextValue {
   settingsLoading: boolean;
   profileLoading: boolean;
   updateSettings: (patch: Partial<Omit<Settings, "updatedAt">>) => Promise<boolean>;
-  updateProfile: (patch: { username: string; email?: string | null }) => Promise<boolean>;
+  updateProfile: (patch: { username: string }) => Promise<boolean>;
   notify: (message: string, tone?: ToastTone) => void;
   toasts: Toast[];
   dismissToast: (id: number) => void;
@@ -191,7 +191,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const updateProfile = useCallback(
-    async (patch: { username: string; email?: string | null }) => {
+    async (patch: { username: string }) => {
       try {
         await profileMutation.mutateAsync(patch);
         notify("Profile updated.", "success");

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import csv
+import io
+
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -53,6 +56,55 @@ def export_all(db: Session, user: User) -> dict:
         ],
         "sessions": [serialize_session(session) for session in sessions],
     }
+
+
+CSV_COLUMNS = [
+    "title",
+    "category",
+    "started_at",
+    "ended_at",
+    "focused_seconds",
+    "interrupted_seconds",
+    "paused_seconds",
+    "status",
+    "notes",
+]
+
+
+def export_sessions_csv(db: Session, user: User) -> str:
+    """Return the same session data as the JSON export, flat and portable.
+
+    The column names match the importer's aliases, so an export can be edited
+    and re-imported without translation.
+    """
+    sessions = list(
+        db.scalars(
+            select(FocusSession)
+            .options(joinedload(FocusSession.category))
+            .where(FocusSession.user_id == user.id)
+            .order_by(FocusSession.started_at.asc())
+        )
+        .unique()
+        .all()
+    )
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=CSV_COLUMNS, lineterminator="\n")
+    writer.writeheader()
+    for session in sessions:
+        writer.writerow(
+            {
+                "title": session.title,
+                "category": session.category.name if session.category else "",
+                "started_at": session.started_at.isoformat(),
+                "ended_at": session.ended_at.isoformat() if session.ended_at else "",
+                "focused_seconds": round(session.focused_duration, 3),
+                "interrupted_seconds": round(session.interrupted_duration, 3),
+                "paused_seconds": round(session.paused_seconds, 3),
+                "status": session.status,
+                "notes": session.notes or "",
+            }
+        )
+    return buffer.getvalue()
 
 
 def delete_all_sessions(db: Session, user: User) -> int:

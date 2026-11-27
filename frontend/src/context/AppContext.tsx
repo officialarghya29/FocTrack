@@ -150,6 +150,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const errorMessage = useCallback((error: unknown) => {
     if (error instanceof ApiError) return error.message;
+    // A rejected fetch (offline, DNS, blocked request) surfaces as a TypeError
+    // with a browser-specific message that means nothing to a user.
+    if (error instanceof TypeError) {
+      return "The API could not be reached. Check your connection and try again.";
+    }
     if (error instanceof Error) return error.message;
     return "Something went wrong. Please try again.";
   }, []);

@@ -79,13 +79,17 @@ render services create \
   --env-var FOCTRACK_CORS_ORIGINS=https://foctrack.vercel.app
 ```
 
-The service is linked to `main` with auto-deploy on, so a push to `main`
-starts a deploy. Confirm it took the new commit with `render deploys list`; if
-GitHub delivered no event, trigger it explicitly:
+This service was created from the CLI and has no GitHub webhook, so a push does
+not deploy it. Either install the Render GitHub App on the repository (Render
+dashboard → service → **Settings → Build & Deploy → Repository**) to get
+push-to-deploy, or trigger each deploy explicitly:
 
 ```bash
 render deploys create <service-id> --commit <sha> --confirm
 ```
+
+Confirm what is actually running with `render deploys list`: compare the live
+deploy's commit with `git rev-parse HEAD` before testing the deployment.
 
 The deployment is successful when `render deploys list` reports `live` and the
 health check returns 200.
@@ -102,6 +106,10 @@ vercel deploy --prod --yes
 
 `frontend/vercel.json` sets the framework, build command, output directory and
 the SPA rewrite, so deep links such as `/analytics` resolve to `index.html`.
+
+The project is connected to the GitHub repository with `vercel git connect`, so
+a push to `main` starts a production build. CLI deploys remain available for a
+build you want to ship without a commit.
 
 Rebuild whenever `VITE_API_BASE_URL` changes; the value is inlined into the
 bundle. To confirm the deployed bundle points at the right API:

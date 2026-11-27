@@ -3,7 +3,6 @@ import {
   ChartNoAxesColumn,
   History,
   LayoutGrid,
-  LogOut,
   Moon,
   SlidersHorizontal,
   Sun,
@@ -11,7 +10,6 @@ import {
 } from "lucide-react";
 import { Wordmark } from "../common/Logo";
 import { useApp } from "../../context/AppContext";
-import { useAuth } from "../../context/AuthContext";
 import { useLiveSession } from "../../hooks/useLiveSession";
 import { formatClock } from "../../utils/format";
 
@@ -78,7 +76,6 @@ export function ThemeToggle() {
 
 export function Sidebar() {
   const { profile } = useApp();
-  const { user, logout } = useAuth();
 
   return (
     <aside className="sticky top-0 hidden h-dvh w-[236px] shrink-0 flex-col border-r border-line bg-base px-4 py-6 lg:flex">
@@ -128,24 +125,17 @@ export function Sidebar() {
 
       <div className="mt-auto space-y-3 pt-6">
         <div className="rounded-md border border-line p-3">
-          <p className="micro">Signed in</p>
+          <p className="micro">Local profile</p>
           <p className="mt-1.5 truncate text-[13px] font-medium">
-            {user?.username ?? profile?.username ?? "Account"}
+            {profile?.username ?? "Focus User"}
           </p>
-          <p className="mt-0.5 truncate text-[11px] text-muted">
-            {user?.email ?? (profile ? `${profile.totalSessions} completed` : "")}
+          <p className="mt-0.5 text-[11px] text-muted">
+            {profile ? `${profile.totalSessions} completed` : "Loading…"}
           </p>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            className="mt-2 flex w-full items-center gap-1.5 rounded border border-line px-2 py-1.5 text-[11px] text-muted transition-colors hover:border-muted/50 hover:text-ink"
-          >
-            <LogOut size={11} /> Sign out
-          </button>
         </div>
         <ThemeToggle />
         <p className="px-1 font-mono text-[9px] uppercase tracking-micro text-muted/60">
-          FocTrack v1.1 · private by default
+          FocTrack v1.0 · local-first
         </p>
       </div>
     </aside>

@@ -6,9 +6,6 @@ import {
   Database,
   Download,
   Info,
-  KeyRound,
-  LogOut,
-  Mail,
   Pencil,
   Plus,
   ShieldCheck,
@@ -19,12 +16,10 @@ import {
 } from "lucide-react";
 import { api } from "../services/api";
 import { useApp } from "../context/AppContext";
-import { useAuth } from "../context/AuthContext";
-import { GoogleButton } from "../components/auth/GoogleButton";
 import type { Category, ImportSummary } from "../types";
 import { ACCENT_SWATCHES, CATEGORY_COLORS } from "../utils/constants";
 import { PageHeader, SectionHeading } from "../components/common/Primitives";
-import { ConfirmDialog, Modal } from "../components/common/Modal";
+import { ConfirmDialog } from "../components/common/Modal";
 import { formatDuration } from "../utils/format";
 
 function Toggle({
@@ -72,23 +67,12 @@ function Toggle({
 export function SettingsPage() {
   const { settings, profile, updateSettings, updateProfile, notify, errorMessage, refreshAll } =
     useApp();
-  const { user, logoutEverywhere, changePassword, deleteAccount } = useAuth();
   const queryClient = useQueryClient();
 
   const categories = useQuery({ queryKey: ["categories"], queryFn: api.categories });
 
   const [username, setUsername] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [accountError, setAccountError] = useState<string | null>(null);
-  const [accountBusy, setAccountBusy] = useState(false);
-  const [confirmSignOutAll, setConfirmSignOutAll] = useState(false);
-  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [deletePassword, setDeletePassword] = useState("");
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [email, setEmail] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [newColor, setNewColor] = useState<string>(CATEGORY_COLORS[0]);
   const [editing, setEditing] = useState<Category | null>(null);
@@ -102,7 +86,10 @@ export function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (profile) setUsername(profile.username);
+    if (profile) {
+      setUsername(profile.username);
+      setEmail(profile.email ?? "");
+    }
   }, [profile]);
 
   const addCategory = useMutation({
@@ -220,48 +207,10 @@ export function SettingsPage() {
 
   const saveProfile = async () => {
     if (!username.trim()) {
-      notify("A display name is required.", "error");
+      notify("A profile name is required.", "error");
       return;
     }
-    await updateProfile({ username: username.trim() });
-  };
-
-  const submitPassword = async () => {
-    setAccountError(null);
-    if (newPassword !== confirmPassword) {
-      setAccountError("The new passwords do not match.");
-      return;
-    }
-    setAccountBusy(true);
-    try {
-      await changePassword(currentPassword, newPassword);
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      notify("Password changed. Other sessions were signed out.", "success");
-    } catch (error) {
-      setAccountError(errorMessage(error));
-    } finally {
-      setAccountBusy(false);
-    }
-  };
-
-  const submitDeleteAccount = async (googleIdToken?: string) => {
-    setDeleteError(null);
-    if (deleteConfirmText !== "DELETE") {
-      setDeleteError('Type DELETE exactly to confirm.');
-      return;
-    }
-    setDeleteBusy(true);
-    try {
-      await deleteAccount(
-        googleIdToken ? { googleIdToken } : { password: deletePassword }
-      );
-    } catch (error) {
-      setDeleteError(errorMessage(error));
-    } finally {
-      setDeleteBusy(false);
-    }
+    await updateProfile({ username: username.trim(), email: email.trim() || null });
   };
 
   return (
@@ -269,12 +218,12 @@ export function SettingsPage() {
       <PageHeader
         eyebrow="Settings"
         title="Preferences and data"
-        description="Everything here belongs to your account. No other account can see, change or delete it."
+        description="Everything here is stored with your profile. Nothing is shared or sent to a third party."
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="panel p-5">
-          <SectionHeading title="Profile" hint="Visible only to you" />
+          <SectionHeading title="Profile" hint="Local profile mode" />
           <div className="space-y-4">
             <div>
               <label htmlFor="profile-name" className="label">
@@ -290,23 +239,16 @@ export function SettingsPage() {
             </div>
             <div>
               <label htmlFor="profile-email" className="label">
-                Email
+                Email <span className="text-muted/60">(optional, never sent anywhere)</span>
               </label>
-              <div className="flex items-center gap-2 rounded-md border border-line bg-base px-3 py-2.5">
-                <Mail size={13} className="shrink-0 text-muted" />
-                <span id="profile-email" className="min-w-0 flex-1 truncate text-sm">
-                  {user?.email ?? profile.email ?? "Not set"}
-                </span>
-                {user?.emailVerified ? (
-                  <span className="micro shrink-0 text-positive">verified</span>
-                ) : (
-                  <span className="micro shrink-0">unverified</span>
-                )}
-              </div>
-              <p className="mt-1.5 text-[10px] leading-relaxed text-muted">
-                Your email is your sign-in identity, so it cannot be edited here. Changing it
-                needs a verification email, which this deployment does not send yet.
-              </p>
+              <input
+                id="profile-email"
+                type="email"
+                className="field"
+                value={email}
+                maxLength={255}
+                onChange={(event) => setEmail(event.target.value)}
+              />
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
               <p className="text-[11px] text-muted">
@@ -322,103 +264,10 @@ export function SettingsPage() {
               </button>
             </div>
           </div>
-        </section>
-
-        <section className="panel p-5">
-          <SectionHeading title="Account" hint="Sign-in and security" />
-          <div className="space-y-2 rounded-md border border-line bg-base/60 px-3 py-2.5 text-[11px] leading-relaxed text-muted">
-            <p>
-              Signed in as <span className="text-ink">{user?.email}</span>
-              {user?.hasPassword ? " with a password." : " with Google."}
-            </p>
-            <p>
-              Access tokens last 30 minutes and refresh automatically. Signing out everywhere
-              revokes every session immediately.
-            </p>
-          </div>
-
-          {user?.hasPassword ? (
-            <form
-              className="mt-4 space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void submitPassword();
-              }}
-            >
-              <p className="label">Change password</p>
-              <input
-                type="password"
-                className="field"
-                placeholder="Current password"
-                aria-label="Current password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
-              <input
-                type="password"
-                className="field"
-                placeholder="New password (at least 10 characters)"
-                aria-label="New password"
-                autoComplete="new-password"
-                minLength={10}
-                maxLength={128}
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
-              <input
-                type="password"
-                className="field"
-                placeholder="Confirm new password"
-                aria-label="Confirm new password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-              />
-              {accountError && (
-                <p role="alert" className="text-[11px] leading-relaxed text-danger">
-                  {accountError}
-                </p>
-              )}
-              <button
-                type="submit"
-                className="btn btn-sm w-full"
-                disabled={
-                  accountBusy || !currentPassword || newPassword.length < 10 || !confirmPassword
-                }
-              >
-                <KeyRound size={12} />
-                {accountBusy ? "Changing…" : "Change password"}
-              </button>
-            </form>
-          ) : (
-            <p className="mt-4 rounded-md border border-line px-3 py-2 text-[10px] leading-relaxed text-muted">
-              This account uses Google sign-in, so there is no FocTrack password to change.
-              Your Google account controls how you sign in.
-            </p>
-          )}
-
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => setConfirmSignOutAll(true)}
-            >
-              <LogOut size={12} /> Sign out everywhere
-            </button>
-            <button
-              type="button"
-              className="btn btn-danger btn-sm"
-              onClick={() => {
-                setDeleteConfirmText("");
-                setDeletePassword("");
-                setDeleteError(null);
-                setConfirmDeleteAccount(true);
-              }}
-            >
-              <Trash2 size={12} /> Delete account
-            </button>
-          </div>
+          <p className="mt-4 rounded-md border border-line bg-base/60 px-3 py-2 text-[10px] leading-relaxed text-muted">
+            FocTrack runs as a single local profile. There are no passwords and no account system,
+            so the app never pretends to offer secure multi-user authentication.
+          </p>
         </section>
 
         <section className="panel p-5">
@@ -678,17 +527,9 @@ export function SettingsPage() {
                 Download a JSON file with your profile, settings, categories, sessions and
                 interruptions.
               </p>
-              <button
-                type="button"
-                className="btn btn-sm mt-3 w-full"
-                onClick={() =>
-                  void api
-                    .downloadExport()
-                    .catch((error) => notify(errorMessage(error), "error"))
-                }
-              >
+              <a href={api.exportUrl()} className="btn btn-sm mt-3 w-full" download>
                 Export JSON
-              </button>
+              </a>
             </div>
 
             <div className="rounded-md border border-line p-4">
@@ -718,17 +559,13 @@ export function SettingsPage() {
               >
                 {importCsv.isPending ? "Importing…" : "Choose CSV"}
               </button>
-              <button
-                type="button"
-                onClick={() =>
-                  void api
-                    .downloadCsvTemplate()
-                    .catch((error) => notify(errorMessage(error), "error"))
-                }
-                className="mt-2 block w-full text-center text-[10px] text-muted underline decoration-line underline-offset-2 hover:text-ink"
+              <a
+                href={api.csvTemplateUrl()}
+                download
+                className="mt-2 block text-center text-[10px] text-muted underline decoration-line underline-offset-2 hover:text-ink"
               >
                 Download template
-              </button>
+              </a>
               {importError && (
                 <p role="alert" className="mt-2 text-[10px] leading-relaxed text-danger">
                   {importError}
@@ -803,7 +640,7 @@ export function SettingsPage() {
         </section>
 
         <section className="panel p-5 xl:col-span-2">
-          <SectionHeading title="About FocTrack" hint="v1.1.0" />
+          <SectionHeading title="About FocTrack" hint="v1.0.0" />
           <div className="grid gap-5 sm:grid-cols-3">
             <div>
               <p className="flex items-center gap-1.5 text-[13px] font-medium">
@@ -828,8 +665,8 @@ export function SettingsPage() {
                 <Volume2 size={13} className="text-warn" /> Storage
               </p>
               <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
-                Sessions are stored in the API's PostgreSQL database, scoped to your account.
-                Browser storage only keeps a theme preference and a revocable refresh token.
+                Sessions are stored in SQLite on the machine running the API. Browser storage only
+                remembers your theme preference.
               </p>
             </div>
           </div>
@@ -878,87 +715,6 @@ export function SettingsPage() {
         destructive
         busy={wipeData.isPending}
       />
-
-      <ConfirmDialog
-        open={confirmSignOutAll}
-        onClose={() => setConfirmSignOutAll(false)}
-        onConfirm={() => {
-          setConfirmSignOutAll(false);
-          void logoutEverywhere().catch((error) =>
-            notify(errorMessage(error), "error")
-          );
-        }}
-        title="Sign out everywhere?"
-        description="Every access and refresh token for this account stops working immediately, including this tab. You will need to sign in again."
-        confirmLabel="Sign out everywhere"
-        destructive
-      />
-
-      <Modal
-        open={confirmDeleteAccount}
-        onClose={() => setConfirmDeleteAccount(false)}
-        title="Delete your account?"
-        description="This removes the account, its sessions, interruptions, categories and settings. It cannot be undone."
-        width="sm"
-        footer={
-          <>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => setConfirmDeleteAccount(false)}
-            >
-              Keep my account
-            </button>
-            {user?.hasPassword && (
-              <button
-                type="button"
-                className="btn btn-danger btn-sm"
-                disabled={deleteBusy || deleteConfirmText !== "DELETE" || !deletePassword}
-                onClick={() => void submitDeleteAccount()}
-              >
-                {deleteBusy ? "Deleting…" : "Delete account"}
-              </button>
-            )}
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-[12px] leading-relaxed text-muted">
-            Type <span className="font-mono text-ink">DELETE</span> to confirm. Your account
-            data is removed permanently; export it first if you want a copy.
-          </p>
-          <input
-            className="field"
-            value={deleteConfirmText}
-            onChange={(event) => setDeleteConfirmText(event.target.value)}
-            aria-label="Type DELETE to confirm"
-            placeholder="DELETE"
-          />
-          {user?.hasPassword ? (
-            <input
-              type="password"
-              className="field"
-              value={deletePassword}
-              onChange={(event) => setDeletePassword(event.target.value)}
-              aria-label="Password"
-              autoComplete="current-password"
-              placeholder="Your password"
-            />
-          ) : (
-            <div className="space-y-2">
-              <p className="text-[11px] leading-relaxed text-muted">
-                Confirm with the Google account you signed in with.
-              </p>
-              <GoogleButton onCredential={(credential) => void submitDeleteAccount(credential)} />
-            </div>
-          )}
-          {deleteError && (
-            <p role="alert" className="text-[11px] leading-relaxed text-danger">
-              {deleteError}
-            </p>
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }

@@ -65,23 +65,6 @@ export interface Settings {
   updatedAt: string;
 }
 
-export interface AuthUser {
-  id: number;
-  username: string;
-  email: string | null;
-  emailVerified: boolean;
-  hasPassword: boolean;
-  createdAt: string;
-}
-
-export interface AuthSession {
-  accessToken: string;
-  refreshToken: string;
-  tokenType: string;
-  expiresIn: number;
-  user: AuthUser;
-}
-
 export interface Profile {
   id: number;
   username: string;

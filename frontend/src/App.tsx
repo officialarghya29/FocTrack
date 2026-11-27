@@ -1,8 +1,6 @@
 import { lazy } from "react";
 import { Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
-import { PublicOnly, RequireAuth } from "./components/auth/RequireAuth";
-import { AppProvider } from "./context/AppContext";
 
 const DashboardPage = lazy(() =>
   import("./pages/Dashboard").then((module) => ({ default: module.DashboardPage }))
@@ -22,55 +20,11 @@ const SettingsPage = lazy(() =>
 const NotFoundPage = lazy(() =>
   import("./pages/NotFound").then((module) => ({ default: module.NotFoundPage }))
 );
-const LoginPage = lazy(() =>
-  import("./pages/Login").then((module) => ({ default: module.LoginPage }))
-);
-const SignupPage = lazy(() =>
-  import("./pages/Signup").then((module) => ({ default: module.SignupPage }))
-);
-const ForgotPasswordPage = lazy(() =>
-  import("./pages/ForgotPassword").then((module) => ({
-    default: module.ForgotPasswordPage,
-  }))
-);
 
 export default function App() {
   return (
     <Routes>
-      <Route
-        path="login"
-        element={
-          <PublicOnly>
-            <LoginPage />
-          </PublicOnly>
-        }
-      />
-      <Route
-        path="signup"
-        element={
-          <PublicOnly>
-            <SignupPage />
-          </PublicOnly>
-        }
-      />
-      <Route
-        path="forgot-password"
-        element={
-          <PublicOnly>
-            <ForgotPasswordPage />
-          </PublicOnly>
-        }
-      />
-
-      <Route
-        element={
-          <RequireAuth>
-            <AppProvider>
-              <AppShell />
-            </AppProvider>
-          </RequireAuth>
-        }
-      >
+      <Route element={<AppShell />}>
         <Route index element={<DashboardPage />} />
         <Route path="focus" element={<FocusPage />} />
         <Route path="history" element={<HistoryPage />} />

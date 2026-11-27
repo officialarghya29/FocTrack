@@ -195,7 +195,7 @@ export function SessionSetup() {
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
             <p className="text-[11px] text-muted">
-              Starting as <span className="text-ink">{profile?.username ?? "your account"}</span>
+              Starting as <span className="text-ink">{profile?.username ?? "local profile"}</span>
             </p>
             <button
               type="submit"

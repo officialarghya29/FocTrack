@@ -1,7 +1,5 @@
 import type {
   ActionResponse,
-  AuthSession,
-  AuthUser,
   CategoriesAnalytics,
   Category,
   DailyAnalytics,
@@ -20,8 +18,6 @@ import type {
 const RAW_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
 const BASE = RAW_BASE.replace(/\/+$/, "");
-
-export const REFRESH_STORAGE_KEY = "foctrack.refresh";
 
 export class ApiError extends Error {
   status: number;
@@ -91,58 +87,6 @@ async function fetchWithTimeout(
   }
 }
 
-// --- token state -----------------------------------------------------------
-// The access token lives in memory only. The refresh token is the one value
-// that survives a reload; it is rotated on every use and can be revoked
-// server-side.
-let accessToken: string | null = null;
-
-export function setAccessToken(token: string | null): void {
-  accessToken = token;
-}
-
-export function getRefreshToken(): string | null {
-  try {
-    return window.localStorage.getItem(REFRESH_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setRefreshToken(token: string | null): void {
-  try {
-    if (token) window.localStorage.setItem(REFRESH_STORAGE_KEY, token);
-    else window.localStorage.removeItem(REFRESH_STORAGE_KEY);
-  } catch {
-    // Storage can be unavailable in private modes; the session still works
-    // until the tab closes.
-  }
-}
-
-type RefreshHandler = () => Promise<boolean>;
-let refreshHandler: RefreshHandler | null = null;
-let authLostHandler: (() => void) | null = null;
-let refreshInFlight: Promise<boolean> | null = null;
-
-export function setRefreshHandler(handler: RefreshHandler | null): void {
-  refreshHandler = handler;
-}
-
-export function setAuthLostHandler(handler: (() => void) | null): void {
-  authLostHandler = handler;
-}
-
-/** Concurrent 401s share one rotation so a refresh token is never replayed. */
-async function refreshOnce(): Promise<boolean> {
-  if (!refreshHandler) return false;
-  if (!refreshInFlight) {
-    refreshInFlight = refreshHandler().finally(() => {
-      refreshInFlight = null;
-    });
-  }
-  return refreshInFlight;
-}
-
 type Query = Record<string, string | number | boolean | undefined | null>;
 
 function withQuery(path: string, query?: Query): string {
@@ -180,36 +124,17 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
-interface RequestOptions {
-  /** Retry once after rotating the access token. */
-  retryAuth?: boolean;
-}
-
 async function request<T>(
   path: string,
-  options: RequestInit = {},
-  { retryAuth = true }: RequestOptions = {}
+  options: RequestInit = {}
 ): Promise<T> {
-  const send = (token: string | null) =>
-    fetchWithTimeout(`${BASE}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers ?? {}),
-      },
-    });
-
-  let response = await send(accessToken);
-
-  if (response.status === 401 && retryAuth && refreshHandler) {
-    if (await refreshOnce()) {
-      response = await send(accessToken);
-    } else {
-      authLostHandler?.();
-    }
-  }
-
+  const response = await fetchWithTimeout(`${BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers ?? {}),
+    },
+  });
   return parseResponse<T>(response);
 }
 
@@ -225,81 +150,11 @@ function body(data: unknown): RequestInit {
   return { body: JSON.stringify(data) };
 }
 
-async function filenameFrom(response: Response, fallback: string): Promise<string> {
-  const disposition = response.headers.get("content-disposition") ?? "";
-  const match = /filename="([^"]+)"/.exec(disposition);
-  return match?.[1] ?? fallback;
-}
-
-async function download(path: string, fallbackName: string): Promise<void> {
-  const send = (token: string | null) =>
-    fetchWithTimeout(`${BASE}${path}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-
-  let response = await send(accessToken);
-  if (response.status === 401 && refreshHandler) {
-    if (await refreshOnce()) {
-      response = await send(accessToken);
-    } else {
-      authLostHandler?.();
-    }
-  }
-  if (!response.ok) {
-    await parseResponse(response);
-    return;
-  }
-  const blob = await response.blob();
-  const name = await filenameFrom(response, fallbackName);
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = name;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-export const authApi = {
-  register: (data: { email: string; password: string; username: string }) =>
-    request<AuthSession>("/auth/register", { method: "POST", ...body(data) }, {
-      retryAuth: false,
-    }),
-  login: (data: { email: string; password: string }) =>
-    request<AuthSession>("/auth/login", { method: "POST", ...body(data) }, {
-      retryAuth: false,
-    }),
-  google: (idToken: string) =>
-    request<AuthSession>("/auth/google", { method: "POST", ...body({ idToken }) }, {
-      retryAuth: false,
-    }),
-  refresh: (refreshToken: string) =>
-    request<AuthSession>("/auth/refresh", { method: "POST", ...body({ refreshToken }) }, {
-      retryAuth: false,
-    }),
-  logout: (refreshToken: string) =>
-    request<void>("/auth/logout", { method: "POST", ...body({ refreshToken }) }, {
-      retryAuth: false,
-    }),
-  logoutAll: () => request<void>("/auth/logout-all", { method: "POST" }),
-  me: () => request<AuthUser>("/auth/me"),
-  changePassword: (currentPassword: string, newPassword: string) =>
-    request<AuthSession>("/auth/change-password", {
-      method: "POST",
-      ...body({ currentPassword, newPassword }),
-    }),
-  deleteAccount: (data: { password?: string; googleIdToken?: string }) =>
-    request<void>("/auth/account", { method: "DELETE", ...body(data) }),
-};
-
 export const api = {
-  health: () => request<{ status: string; version: string }>("/health", {
-    // Health is public; sending no token avoids a needless refresh attempt.
-  }, { retryAuth: false }),
+  health: () => request<{ status: string; version: string }>("/health"),
 
   profile: () => request<Profile>("/profile"),
-  updateProfile: (data: { username: string }) =>
+  updateProfile: (data: { username: string; email?: string | null }) =>
     request<Profile>("/profile", { method: "PATCH", ...body(data) }),
 
   settings: () => request<Settings>("/settings"),
@@ -386,22 +241,15 @@ export const api = {
     request<{ deletedSessions: number; message: string }>("/data", {
       method: "DELETE",
     }),
-  downloadExport: () => download("/export", "foctrack-export.json"),
-  downloadCsvTemplate: () => download("/import/csv/template", "foctrack-import-template.csv"),
+  exportUrl: () => `${BASE}/export`,
+  csvTemplateUrl: () => `${BASE}/import/csv/template`,
   importCsv: async (file: File): Promise<ImportSummary> => {
     const form = new FormData();
     form.append("file", file);
-    const send = (token: string | null) =>
-      fetchWithTimeout(`${BASE}/import/csv`, {
-        method: "POST",
-        body: form,
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-    let response = await send(accessToken);
-    if (response.status === 401 && refreshHandler) {
-      if (await refreshOnce()) response = await send(accessToken);
-      else authLostHandler?.();
-    }
+    const response = await fetchWithTimeout(`${BASE}/import/csv`, {
+      method: "POST",
+      body: form,
+    });
     return parseResponse<ImportSummary>(response);
   },
 };

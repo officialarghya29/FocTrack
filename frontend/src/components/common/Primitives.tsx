@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, Inbox } from "lucide-react";
 
 export function PageHeader({
@@ -126,10 +126,28 @@ export function ErrorState({
 }
 
 export function LoadingBlock({ label = "Loading" }: { label?: string }) {
+  // The hosted API runs on a free instance that sleeps when idle. The first
+  // request of the day can take a while to wake it, so say so instead of
+  // leaving a bare spinner that looks broken.
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setSlow(true), 6000);
+    return () => window.clearTimeout(id);
+  }, []);
+
   return (
-    <div className="flex items-center gap-3 py-10 text-muted" role="status" aria-live="polite">
-      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent" />
-      <span className="micro">{label}</span>
+    <div className="flex flex-col gap-2 py-10 text-muted" role="status" aria-live="polite">
+      <div className="flex items-center gap-3">
+        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent" />
+        <span className="micro">{label}</span>
+      </div>
+      {slow && (
+        <p className="pl-[26px] text-[11px] leading-relaxed text-muted/80">
+          Still connecting. The hosted API sleeps when idle, so the first request can take up to a
+          minute. This page will load as soon as it responds.
+        </p>
+      )}
     </div>
   );
 }

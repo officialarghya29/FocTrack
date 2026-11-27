@@ -79,8 +79,9 @@ render services create \
   --env-var FOCTRACK_CORS_ORIGINS=https://foctrack.vercel.app
 ```
 
-Redeploy after a push (the CLI-created service is not wired to the GitHub
-webhook, so deploys are explicit):
+The service is linked to `main` with auto-deploy on, so a push to `main`
+starts a deploy. Confirm it took the new commit with `render deploys list`; if
+GitHub delivered no event, trigger it explicitly:
 
 ```bash
 render deploys create <service-id> --commit <sha> --confirm
@@ -144,6 +145,16 @@ Then, in the browser:
 * **Cold starts.** The Render free service sleeps after 15 minutes without
   inbound traffic and takes up to a minute to wake. The Neon compute suspends
   when idle as well. The first request after a quiet period is slow, not broken.
+* **Keep-warm.** `.github/workflows/keep-warm.yml` requests `/health` every five
+  minutes, which keeps the free instance inside its 750 monthly hours (744 for
+  an always-on service). Scheduled workflows do not consume paid Actions
+  minutes on a public repository. Disable the workflow if the API is not meant
+  to stay up, and expect cold starts to return.
+* **Client deadlines.** The web client aborts a request after 30 seconds and
+  retries gateway errors, timeouts and 5xx responses four times with backoff.
+  A loading block also explains that the free API may be starting up after six
+  seconds. This turns a stalled instance into a clear error or a successful
+  wake instead of an endless spinner.
 * **Connections.** The engine uses `pool_pre_ping` and a 300 second
   `pool_recycle` so a suspended database resumes cleanly. Keep the pool small;
   the free Neon plan has a bounded connection limit.
@@ -151,7 +162,13 @@ Then, in the browser:
   filesystem, so nothing is stored on disk in production.
 * **Backups.** Neon keeps six hours of branch history on the free plan, which
   covers a bad deploy but not long-term retention. Download the JSON export from
-  Settings before schema changes.
+  Settings before schema changes, or take a local dump:
+
+  ```bash
+  pg_dump "$FOCTRACK_DATABASE_URL" --no-owner --format=custom > focustrack.dump
+  ```
+
+  The DSN is read from the environment, never written into a tracked file.
 * **Single profile.** There is no authentication. Do not advertise the
   deployment as a multi-user service.
 * **Scaling.** One API instance. Multiple workers are unnecessary for a

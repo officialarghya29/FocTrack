@@ -174,7 +174,7 @@ procedure: [`docs/deployment.md`](docs/deployment.md).
 | Migrations | Alembic | Applied to `head` at startup |
 | Database | SQLite / PostgreSQL | SQLite locally; serverless PostgreSQL in deployment |
 | Backend tests | Pytest + HTTPX TestClient | 62 tests |
-| Frontend tests | Vitest + Testing Library | 18 tests |
+| Frontend tests | Vitest + Testing Library | 20 tests |
 | Deployment | Vercel (frontend) + Render (API) + Neon (database) | Live on free tiers |
 | Delivery | Route-level code splitting | Chart library isolated in its own chunk |
 
@@ -394,17 +394,24 @@ No `.env` file is committed. Secrets never appear in the repository.
 The deployment runs entirely on free tiers, which shapes the operational
 behaviour:
 
-* The Render service sleeps after 15 minutes without traffic. The next request
-  wakes it, which can take up to a minute; data is unaffected.
+* The Render service sleeps after 15 minutes without traffic. A scheduled
+  GitHub Actions workflow pings `/health` every five minutes so it stays awake
+  inside the 750 free instance-hours; if a request still meets a waking
+  instance, the client waits up to 30 seconds, retries with backoff and shows
+  that the API is starting instead of spinning forever.
 * The Neon database suspends its compute when idle and resumes on the next
   query. Connection pooling uses `pool_pre_ping` and a 300 second recycle, so a
   suspended database resumes instead of surfacing a stale-connection error.
+  Startup migrations retry briefly rather than failing a deployment.
 * `FOCTRACK_DATABASE_URL` and `FOCTRACK_CORS_ORIGINS` are set in the Render
   dashboard. The deployed frontend origin is the only allowed CORS origin.
 * Alembic migrations run on every boot, so the schema is versioned in
   production exactly as it is locally.
-* Download the JSON export from Settings as a backup. Free Neon storage is
-  0.5 GB and the free Render service has no persistent disk.
+* Neon keeps an automatic point-in-time restore window on the free plan. For a
+  local copy, download the JSON export from Settings or run
+  `pg_dump "$FOCTRACK_DATABASE_URL" --no-owner --format=custom > focustrack.dump`.
+  Free Neon storage is 0.5 GB and the free Render service has no persistent
+  disk.
 
 Step-by-step runbook, including CLI commands and verification:
 [`docs/deployment.md`](docs/deployment.md).
@@ -434,7 +441,7 @@ against the hosted dialect.
 Result on this machine: **62 passed** on SQLite and **62 passed** on
 PostgreSQL 16.
 
-### Frontend — 18 tests
+### Frontend — 20 tests
 
 ```bash
 cd frontend
@@ -445,9 +452,10 @@ Coverage includes time formatting and rounding, day boundaries, timer rendering
 and screen-reader status, required-title validation, session creation with the
 selected category and target, dialog focus retention while a live timer
 re-renders the page, removal of a finished session from the active cache, and
-the retry policy that tolerates a cold-starting API.
+the retry policy that tolerates a cold-starting API (gateway errors, timeouts
+and 5xx responses).
 
-Result on this machine: **18 passed across 6 files**.
+Result on this machine: **20 passed across 6 files**.
 
 ### Production build
 
@@ -558,9 +566,10 @@ The current release has the following constraints.
    to expose publicly as a multi-user service. Every query is user-scoped, but
    the profile is implicit.
 2. **Free-tier hosting.** The API sleeps after 15 minutes of inactivity, so the
-   first request afterwards can take up to a minute to wake it. The database is
-   a free Neon instance (0.5 GB) that suspends when idle. Fine for one person
-   recording sessions; not an always-on service.
+   first request afterwards can take up to a minute to wake it. A keep-warm
+   workflow mitigates this, and the client retries with a visible starting-up
+   message. The database is a free Neon instance (0.5 GB) that suspends when
+   idle. Fine for personal use; not an always-on service.
 3. **Analytics aggregate in Python.** Correct and portable, but not the fastest
    approach for very large histories. Measured timings above reflect ~40 rows.
 4. **Reminders need an open tab.** Browser notifications fire only while the app

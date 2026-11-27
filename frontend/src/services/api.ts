@@ -29,14 +29,26 @@ export class ApiError extends Error {
   }
 }
 
-const GATEWAY_STATUSES = new Set([502, 503, 504]);
+/**
+ * A single request may not stay pending forever.
+ *
+ * The hosted API runs on a free instance that stops when idle and takes tens
+ * of seconds to start again. Without a deadline a waking instance can leave a
+ * request hanging indefinitely, which is exactly what an endless loading
+ * screen looks like. Aborting turns that into a retryable failure.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
+// Status 0 is a request that never produced a response (timeout or abort).
+// 5xx responses from the platform proxy (502/503/504) or the app (500) are
+// transient while an instance boots, so they are retryable too.
+const RETRYABLE_STATUSES = new Set([0, 500, 502, 503, 504]);
 
 /**
  * Retry policy for read queries.
  *
- * The hosted API runs on a free tier that sleeps when idle, so the first
- * request after a quiet period can fail with a gateway error or a network
- * rejection while the service wakes. Those are worth retrying; a validation or
+ * A cold free-tier instance answers with a gateway error or drops the
+ * connection while it boots. Those are worth retrying; a validation, auth or
  * conflict response is not.
  */
 export function shouldRetryQuery(
@@ -44,12 +56,35 @@ export function shouldRetryQuery(
   error: unknown
 ): boolean {
   if (failureCount >= 4) return false;
-  if (error instanceof ApiError) return GATEWAY_STATUSES.has(error.status);
+  if (error instanceof ApiError) return RETRYABLE_STATUSES.has(error.status);
   return true;
 }
 
 export function retryDelay(attempt: number): number {
   return Math.min(1000 * 2 ** attempt, 8000);
+}
+
+/** Today the longest wait is about two minutes of retries, which outlasts the
+ * slowest observed free-instance start without hiding a genuinely dead API. */
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new ApiError(
+        "The API did not respond in time. It may be starting up.",
+        0
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 type Query = Record<string, string | number | boolean | undefined | null>;
@@ -93,12 +128,12 @@ async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, {
+  const response = await fetchWithTimeout(`${BASE}${path}`, {
+    ...options,
     headers: {
       "Content-Type": "application/json",
       ...(options.headers ?? {}),
     },
-    ...options,
   });
   return parseResponse<T>(response);
 }
@@ -211,7 +246,7 @@ export const api = {
   importCsv: async (file: File): Promise<ImportSummary> => {
     const form = new FormData();
     form.append("file", file);
-    const response = await fetch(`${BASE}/import/csv`, {
+    const response = await fetchWithTimeout(`${BASE}/import/csv`, {
       method: "POST",
       body: form,
     });

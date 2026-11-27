@@ -8,6 +8,16 @@ describe("query retry policy", () => {
     expect(shouldRetryQuery(2, new ApiError("timeout", 504))).toBe(true);
   });
 
+  it("retries a request that timed out without a response", () => {
+    expect(
+      shouldRetryQuery(0, new ApiError("The API did not respond in time.", 0))
+    ).toBe(true);
+  });
+
+  it("retries an application error while the instance boots", () => {
+    expect(shouldRetryQuery(0, new ApiError("internal error", 500))).toBe(true);
+  });
+
   it("retries network rejections", () => {
     expect(shouldRetryQuery(0, new TypeError("Failed to fetch"))).toBe(true);
   });

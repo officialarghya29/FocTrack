@@ -228,7 +228,7 @@ def start_interruption(
     reason: str,
     custom_reason: str | None,
     notes: str | None,
-) -> tuple[dict, dict]:
+) -> dict:
     session = load_session(db, user, session_id)
     if session.status != SessionStatus.ACTIVE.value:
         raise conflict("Interruptions can only be recorded while a session is running.")

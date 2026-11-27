@@ -8,11 +8,13 @@ deployments. Tests use `create_all` against an isolated database instead.
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import inspect
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.database.base import Base
@@ -32,12 +34,38 @@ def run_migrations() -> None:
     command.upgrade(config, "head")
 
 
+MIGRATION_ATTEMPTS = 4
+MIGRATION_RETRY_SECONDS = 3.0
+
+
 def init_database() -> None:
-    if ALEMBIC_INI.exists():
-        run_migrations()
-        logger.info("Migrations applied (head).")
-    else:  # pragma: no cover - defensive fallback for packaged builds
+    """Apply migrations, tolerating a database that is still waking up.
+
+    A hosted database can refuse the first connection after suspending, and a
+    failed startup takes the whole service down. Retrying briefly keeps a cold
+    start from turning into a failed deployment; a genuinely broken database
+    still raises after the final attempt.
+    """
+    if not ALEMBIC_INI.exists():  # pragma: no cover - packaged fallback
         Base.metadata.create_all(bind=engine)
+        return
+
+    for attempt in range(1, MIGRATION_ATTEMPTS + 1):
+        try:
+            run_migrations()
+            logger.info("Migrations applied (head).")
+            return
+        except SQLAlchemyError as exc:
+            if attempt == MIGRATION_ATTEMPTS:
+                logger.error("Database unreachable after %s attempts.", attempt)
+                raise
+            logger.warning(
+                "Database not ready (attempt %s/%s): %s",
+                attempt,
+                MIGRATION_ATTEMPTS,
+                exc.__class__.__name__,
+            )
+            time.sleep(MIGRATION_RETRY_SECONDS)
 
 
 def create_all() -> None:

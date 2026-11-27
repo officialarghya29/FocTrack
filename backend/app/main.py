@@ -99,6 +99,16 @@ def create_app() -> FastAPI:
             content={"detail": "The database is unavailable. Please try again."},
         )
 
+    @app.exception_handler(Exception)
+    async def unexpected_handler(request: Request, exc: Exception):
+        # Every failure the client sees is JSON with a readable message, so the
+        # interface can show the reason instead of parsing a bare 500.
+        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Unexpected server error. Please try again."},
+        )
+
     return app
 
 

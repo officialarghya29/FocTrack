@@ -63,7 +63,7 @@ def test_health_fails_when_database_is_unavailable(client, monkeypatch):
         raise RuntimeError("database is gone")
 
     monkeypatch.setattr(health, "SessionLocal", broken_session)
-    response = client.get("/api/v1/health")
+    response = client.get("/api/v1/health/ready")
     assert response.status_code == 503
     assert response.json()["database"] == "unavailable"
 
@@ -88,9 +88,12 @@ def test_deleting_an_interruption_restores_frozen_focus_time(env):
     assert overview["todayInterruptedSeconds"] == 0
 
 
-def test_profile_email_is_trimmed_to_null(client):
+def test_profile_email_cannot_be_changed(client):
+    # Email is the account identifier; editing it without verification would
+    # let one person claim another person's address.
+    before = client.get("/api/v1/profile").json()["email"]
     response = client.patch(
-        "/api/v1/profile", json={"username": "Focus User", "email": "   "}
+        "/api/v1/profile", json={"username": "Focus User", "email": "other@example.com"}
     )
     assert response.status_code == 200
-    assert response.json()["email"] is None
+    assert response.json()["email"] == before

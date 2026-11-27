@@ -38,7 +38,6 @@ def update_profile(
     user: User = Depends(current_user),
 ):
     user.username = payload.username
-    user.email = payload.email
     db.commit()
     db.refresh(user)
     return profile_service.profile_summary(db, user)

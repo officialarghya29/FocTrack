@@ -32,6 +32,13 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(80), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Nullable: Google-only accounts never have a local password.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    email_verified: Mapped[bool] = mapped_column(Integer, nullable=False, default=0)
+    last_login_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # Bumping this invalidates every access token issued before the change.
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         UTCDateTime, default=utcnow, onupdate=utcnow, nullable=False
@@ -46,6 +53,31 @@ class User(Base):
     sessions: Mapped[list["FocusSession"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class RefreshToken(Base):
+    """A single-server session record.
+
+    Only the SHA-256 digest of the opaque token is stored, so a database read
+    cannot be replayed as a login. Rotation revokes the presented token and
+    issues a new one; presenting a revoked token again revokes the whole family.
+    """
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="refresh_tokens")
 
 
 class Category(Base):

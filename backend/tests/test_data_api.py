@@ -51,8 +51,12 @@ def test_delete_all_data_keeps_categories(env):
 def test_health_endpoint(client):
     payload = client.get("/api/v1/health").json()
     assert payload["status"] == "ok"
-    assert payload["database"] == "ok"
-    assert payload["version"] == "1.0.0"
+    assert payload["version"] == "1.1.0"
+    # The cheap liveness probe must not wait on the database.
+    assert "database" not in payload
+
+    ready = client.get("/api/v1/health/ready").json()
+    assert ready["database"] == "ok"
 
 
 def test_openapi_schema_is_served(client):

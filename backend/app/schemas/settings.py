@@ -47,8 +47,14 @@ class ProfileOut(APIModel):
 
 
 class ProfileUpdate(APIModel):
+    """Only the display name is editable.
+
+    Email is the account identifier. Changing it without proving ownership
+    would let one person claim another person's address, so it is deliberately
+    read-only until a verification flow exists.
+    """
+
     username: str = Field(min_length=1, max_length=80)
-    email: str | None = Field(default=None, max_length=255)
 
     @field_validator("username")
     @classmethod
@@ -57,11 +63,3 @@ class ProfileUpdate(APIModel):
         if not cleaned:
             raise ValueError("Username cannot be empty.")
         return cleaned
-
-    @field_validator("email")
-    @classmethod
-    def normalise_email(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = value.strip()
-        return cleaned or None

@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.api.deps import current_user
 from app.database.session import get_db
 from app.models import User
-from app.schemas.common import Message
 from app.schemas.session import (
     InterruptionCreate,
     SessionActionOut,

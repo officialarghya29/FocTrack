@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "FocTrack API"
-    version: str = "1.0.0"
+    version: str = "1.1.0"
     environment: str = "development"
     api_v1_prefix: str = "/api/v1"
 
@@ -56,8 +56,28 @@ class Settings(BaseSettings):
         "http://localhost:4173,http://127.0.0.1:4173"
     )
 
+    # --- authentication ----------------------------------------------------
+    # A development-only fallback keeps the local server zero-configuration.
+    # Production refuses to start unless a real secret of at least 32
+    # characters is supplied through the environment.
+    jwt_secret: str = "development-only-insecure-secret-change-me"
+    access_token_minutes: int = 30
+    refresh_token_days: int = 14
+    google_client_id: str = ""
+    # Rate limiting needs the real client address. Render terminates TLS and
+    # forwards X-Forwarded-For; only enable this behind a trusted proxy.
+    trust_forwarded_for: bool = False
+
     # Bounds used by the validation layer.
     analytics_max_days: int = 366
+
+    @model_validator(mode="after")
+    def _production_secret(self) -> "Settings":
+        if self.environment == "production" and len(self.jwt_secret) < 32:
+            raise ValueError(
+                "FOCTRACK_JWT_SECRET must be set to at least 32 characters in production."
+            )
+        return self
 
     @property
     def is_postgres(self) -> bool:

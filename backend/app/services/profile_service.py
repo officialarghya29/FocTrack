@@ -1,9 +1,8 @@
-"""Single local profile.
+"""Profile reads and account defaults.
 
-FocTrack's MVP runs in explicit local-profile mode: one profile per database,
-no passwords, no pretend multi-tenancy. Every row is still keyed by `user_id`
-and every query filters on it, so enabling real accounts later only requires
-replacing this module's bootstrap function with an auth dependency.
+Every row is keyed by `user_id` and every query filters on it. Accounts are
+created through `auth_service.create_user_with_defaults`; this module only
+reads profile summaries and owns the default category list.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
-from app.models import Category, FocusSession, User, UserSettings
+from app.models import FocusSession, User, UserSettings
 
 DEFAULT_PROFILE_NAME = "Focus User"
 
@@ -28,24 +27,6 @@ DEFAULT_CATEGORIES: list[tuple[str, str]] = [
     ("Personal", "#E8A0C8"),
     ("Other", "#9BA7B1"),
 ]
-
-
-def get_profile(db: Session) -> User:
-    """Return the local profile, creating it (and defaults) on first run."""
-    user = db.scalar(select(User).order_by(User.id).limit(1))
-    if user is not None:
-        return user
-
-    user = User(username=DEFAULT_PROFILE_NAME)
-    db.add(user)
-    db.flush()
-
-    db.add(UserSettings(user_id=user.id))
-    for name, color in DEFAULT_CATEGORIES:
-        db.add(Category(user_id=user.id, name=name, color=color, is_default=True))
-    db.commit()
-    db.refresh(user)
-    return user
 
 
 def ensure_settings(db: Session, user: User) -> UserSettings:

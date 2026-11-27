@@ -9,13 +9,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
+from app.core import rate_limit
 from app.core.config import normalize_database_url
+from app.core.security import create_access_token, hash_password
 from app.database.base import Base
 from app.database.session import get_db
 from app.main import app
 from app.models import FocusSession
-from app.services import analytics_service, backup_service, demo_service, profile_service
-from app.services import session_clock, session_service
+from app.services import analytics_service, auth_service, backup_service, demo_service
+from app.services import profile_service, session_clock, session_service
 
 BASE_TIME = datetime(2026, 11, 26, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -88,10 +90,50 @@ def env(tmp_path, clock):
             db.close()
 
     app.dependency_overrides[get_db] = override
+    rate_limit.reset()
+
+    with TestingSession() as db:
+        user = auth_service.create_user_with_defaults(
+            db,
+            username="Focus User",
+            email="test@example.com",
+            password_hash=hash_password("test-password-123"),
+            email_verified=True,
+        )
+        other = auth_service.create_user_with_defaults(
+            db,
+            username="Other User",
+            email="other@example.com",
+            password_hash=hash_password("other-password-123"),
+            email_verified=True,
+        )
+        user_id = user.id
+        other_id = other.id
+        token, _ = create_access_token(user.id, user.token_version)
+        other_token, _ = create_access_token(other.id, other.token_version)
+
     client = TestClient(app)
-    yield SimpleNamespace(client=client, Session=TestingSession, engine=engine, clock=clock)
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    other_client = TestClient(app)
+    other_client.headers.update({"Authorization": f"Bearer {other_token}"})
+    anonymous_client = TestClient(app)
+
+    yield SimpleNamespace(
+        client=client,
+        other_client=other_client,
+        anonymous_client=anonymous_client,
+        Session=TestingSession,
+        engine=engine,
+        clock=clock,
+        user_id=user_id,
+        other_user_id=other_id,
+        token=token,
+        other_token=other_token,
+    )
     app.dependency_overrides.clear()
     client.close()
+    other_client.close()
+    anonymous_client.close()
     engine.dispose()
 
 

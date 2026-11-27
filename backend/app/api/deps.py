@@ -1,20 +1,30 @@
 from __future__ import annotations
 
-from fastapi import Depends, Query
+from fastapi import Depends, Query, Request
 from sqlalchemy.orm import Session
 
+from app.core.security import AuthError, bearer_token, decode_access_token
 from app.database.session import get_db
 from app.models import User
-from app.services.profile_service import get_profile
 
 
-def current_user(db: Session = Depends(get_db)) -> User:
-    """Resolve the local profile for this database.
+def current_user(
+    request: Request, db: Session = Depends(get_db)
+) -> User:
+    """Resolve the signed-in account from its bearer access token.
 
-    FocTrack MVP is single-profile. Routes still scope every query by user id,
-    so an authentication dependency can replace this without touching services.
+    The token carries the user id and the account's token version. A token
+    issued before a password change or a global sign-out has a stale version
+    and is rejected even though its signature is valid.
     """
-    return get_profile(db)
+    token = bearer_token(request.headers.get("authorization"))
+    payload = decode_access_token(token)
+    user = db.get(User, payload["user_id"])
+    if user is None:
+        raise AuthError("Your session is no longer valid. Sign in again.")
+    if int(payload.get("tv", -1)) != int(user.token_version):
+        raise AuthError("Your session is no longer valid. Sign in again.")
+    return user
 
 
 def tz_offset(

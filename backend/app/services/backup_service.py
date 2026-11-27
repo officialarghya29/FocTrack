@@ -67,5 +67,5 @@ def delete_all_sessions(db: Session, user: User) -> int:
 
 
 def delete_everything(db: Session, user: User) -> None:
-    """Remove all tracked data while keeping the local profile and categories."""
+    """Remove all tracked data while keeping the account and categories."""
     delete_all_sessions(db, user)

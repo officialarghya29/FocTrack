@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
 from app.models import Category, FocusSession, Interruption, SessionStatus, User
-from app.services.session_clock import INTERRUPTION_REASONS
 
 TITLES = [
     "Algorithms revision",

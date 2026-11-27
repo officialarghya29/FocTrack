@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.analytics.focus_score import DEFAULT_WINDOW_DAYS, compute_focus_score
-from app.core.clock import local_day_start, local_now, utcnow
+from app.core.clock import local_day_start, utcnow
 from app.models import FocusSession, Interruption, SessionStatus, User
 from app.services.session_clock import reason_label, serialize_session
 

@@ -101,6 +101,7 @@ def test_profile_can_be_updated(client):
     )
     assert updated.status_code == 200
     assert updated.json()["username"] == "Arghya"
-    assert updated.json()["email"] == "a@example.com"
+    # The email stays as registered.
+    assert updated.json()["email"] == "test@example.com"
 
     assert client.patch("/api/v1/profile", json={"username": "  "}).status_code == 422

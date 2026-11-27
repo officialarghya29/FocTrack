@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -13,11 +15,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.core.security import AuthError
 from app.database.init_db import init_database
-from app.database.session import SessionLocal
-from app.services.profile_service import get_profile
 
 logger = logging.getLogger("foctrack")
+
+MAX_BODY_BYTES = 3 * 1024 * 1024
 
 DESCRIPTION = """
 FocTrack measures focused time, interrupted time and consistency across focus
@@ -27,15 +30,14 @@ and every analytics number.
 * Timestamps are stored in UTC and returned as ISO-8601.
 * Analytics accept `tzOffsetMinutes` (JavaScript `getTimezoneOffset()`) so day
   boundaries match the user's local calendar.
-* The MVP runs in explicit local-profile mode: one profile per database.
+* Every account is private. Requests authenticate with a short-lived bearer
+  token; a stolen database cannot be replayed as a sign-in.
 """
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_database()
-    with SessionLocal() as db:
-        get_profile(db)
     logger.info("FocTrack API ready")
     yield
 
@@ -56,8 +58,49 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origin_list,
         allow_credentials=False,
         allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
+        max_age=600,
     )
+
+    @app.middleware("http")
+    async def request_context(request: Request, call_next):
+        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex[:16]
+        request.state.request_id = request_id
+
+        length = request.headers.get("content-length")
+        if length and length.isdigit() and int(length) > MAX_BODY_BYTES:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request body is too large."},
+                headers={"X-Request-ID": request_id},
+            )
+
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            # The exception handlers below turn this into JSON; log it with the
+            # request id so a report can be matched to a server line.
+            logger.exception(
+                "Unhandled error request_id=%s %s %s", request_id, request.method, request.url.path
+            )
+            raise
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        logger.info(
+            "%s %s -> %s in %sms request_id=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            request_id,
+        )
+        return response
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)
 
@@ -69,6 +112,15 @@ def create_app() -> FastAPI:
             "docs": "/docs",
             "health": f"{settings.api_v1_prefix}/health",
         }
+
+    @app.exception_handler(AuthError)
+    async def auth_handler(request: Request, exc: AuthError):
+        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=headers,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError):

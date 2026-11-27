@@ -21,3 +21,12 @@ services:
       # Set after the frontend is deployed, then redeploy the API.
       - key: FOCTRACK_CORS_ORIGINS
         sync: false
+      # Required: at least 32 characters. The API refuses to boot without it.
+      - key: FOCTRACK_JWT_SECRET
+        sync: false
+      # Required for Google sign-in; leave unset to keep password-only auth.
+      - key: FOCTRACK_GOOGLE_CLIENT_ID
+        sync: false
+      # Render terminates TLS and forwards the real client address.
+      - key: FOCTRACK_TRUST_FORWARDED_FOR
+        value: "true"

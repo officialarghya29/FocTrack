@@ -12,7 +12,24 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health", response_model=None)
-def health() -> dict | JSONResponse:
+def health() -> dict:
+    """Cheap liveness probe. Never touches the database.
+
+    The platform health check hits this endpoint frequently; it should stay
+    fast even while the database is waking up.
+    """
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "version": settings.version,
+        "environment": settings.environment,
+        "time": utcnow().isoformat(),
+    }
+
+
+@router.get("/health/ready", response_model=None)
+def ready() -> dict | JSONResponse:
+    """Readiness probe: proves the API can reach its database."""
     database = "ok"
     try:
         with SessionLocal() as db:
@@ -27,7 +44,6 @@ def health() -> dict | JSONResponse:
         "database": database,
         "time": utcnow().isoformat(),
     }
-    # A degraded database must fail the platform health check, not report 200.
     if database != "ok":
         return JSONResponse(status_code=503, content=payload)
     return payload

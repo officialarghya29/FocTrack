@@ -457,8 +457,8 @@ SQLite file per test and a controllable clock, so no test sleeps or depends on
 wall time. Set `FOCTRACK_TEST_DATABASE_URL` to a PostgreSQL DSN to run the same
 assertions against the hosted dialect.
 
-Result on this machine: **76 passed** on SQLite. The same suite also runs
-against PostgreSQL 16 in CI.
+Result on this machine: **76 passed** on SQLite; CI runs the same suite against
+PostgreSQL 16 and it passes there too.
 
 ### Frontend — 26 tests
 
@@ -548,7 +548,7 @@ No database, browser-render or deployment benchmarks are claimed.
 | Analytics from stored rows | Passed |
 | Frontend production build | Passed |
 | Frontend/backend integration | Passed (local pair, then the deployed pair) |
-| PostgreSQL test run | Configured in CI (PostgreSQL 16 service); not yet observed green |
+| PostgreSQL test run | Passed in CI (PostgreSQL 16 service, 76 tests) |
 | Account isolation (two accounts, every endpoint) | Passed (dedicated backend tests) |
 | Auth rate limiting and token revocation | Passed (dedicated backend tests) |
 | CSV import (valid and malformed rows) | Passed (9 dedicated tests) |

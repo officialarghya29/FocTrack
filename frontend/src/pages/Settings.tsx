@@ -252,11 +252,11 @@ export function SettingsPage() {
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
               <p className="text-[11px] text-muted">
-                {profile.memberSinceDays === 0
-                  ? "Joined today"
-                  : `Member for ${profile.memberSinceDays} day${
-                      profile.memberSinceDays === 1 ? "" : "s"
-                    }`}{" "}
+                {`Joined ${new Date(profile.createdAt).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}`}{" "}
                 · {profile.totalSessions} completed
               </p>
               <button type="button" className="btn btn-sm" onClick={() => void saveProfile()}>

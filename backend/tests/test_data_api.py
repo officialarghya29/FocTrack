@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 
 from tests.conftest import record_completed_session
@@ -17,6 +19,24 @@ def test_export_returns_real_records(env):
     assert len(payload["sessions"]) == 1
     assert payload["sessions"][0]["title"] == "Exported session"
     assert len(payload["categories"]) == 8
+
+
+def test_export_csv_matches_the_visible_sessions(env):
+    record_completed_session(env, minutes=25, title="CSV exported session")
+    response = env.client.get("/api/v1/export/csv")
+    assert response.status_code == 200
+    assert "attachment" in response.headers["content-disposition"]
+
+    rows = list(csv.DictReader(io.StringIO(response.text)))
+    assert len(rows) == 1
+    assert rows[0]["title"] == "CSV exported session"
+    assert rows[0]["status"] == "COMPLETED"
+    assert rows[0]["focused_seconds"] == "1500.0"
+
+    # Another account's export contains the header but none of these rows.
+    other = env.other_client.get("/api/v1/export/csv")
+    assert other.status_code == 200
+    assert list(csv.DictReader(io.StringIO(other.text))) == []
 
 
 def test_demo_data_is_labelled_and_removable(env):

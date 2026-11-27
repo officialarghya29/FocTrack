@@ -689,6 +689,17 @@ export function SettingsPage() {
               >
                 Export JSON
               </button>
+              <button
+                type="button"
+                className="btn btn-sm mt-2 w-full"
+                onClick={() =>
+                  void api
+                    .downloadExportCsv()
+                    .catch((error) => notify(errorMessage(error), "error"))
+                }
+              >
+                Export CSV
+              </button>
             </div>
 
             <div className="rounded-md border border-line p-4">

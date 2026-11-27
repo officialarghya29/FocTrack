@@ -174,7 +174,7 @@ procedure: [`docs/deployment.md`](docs/deployment.md).
 | Migrations | Alembic | Applied to `head` at startup |
 | Database | SQLite / PostgreSQL | SQLite locally; serverless PostgreSQL in deployment |
 | Authentication | Bearer access tokens + rotated refresh tokens | Scrypt password hashes, optional Google sign-in |
-| Backend tests | Pytest + HTTPX TestClient | 76 tests (SQLite and PostgreSQL) |
+| Backend tests | Pytest + HTTPX TestClient | 77 tests (SQLite and PostgreSQL) |
 | Frontend tests | Vitest + Testing Library | 26 tests |
 | Deployment | Vercel (frontend) + Render (API) + Neon (database) | Live on free tiers |
 | Delivery | Route-level code splitting | Chart library isolated in its own chunk |
@@ -302,6 +302,7 @@ except `/health`, `/health/ready` and `/auth/*` requires
 | `GET` | `/analytics/focus-score` | Score plus components |
 | `GET` | `/analytics/insights` | Distributions and reasons |
 | `GET` | `/export` | Full JSON export download |
+| `GET` | `/export/csv` | Flat session CSV that matches the importer's columns |
 | `GET` | `/import/csv/template` | Download the CSV import template |
 | `POST` | `/import/csv` | Import sessions from CSV (multipart file) |
 | `DELETE` | `/data` | Delete all sessions |
@@ -438,7 +439,7 @@ Step-by-step runbook, including CLI commands and verification:
 
 ## Testing
 
-### Backend — 76 tests
+### Backend — 77 tests
 
 ```bash
 cd backend
@@ -457,7 +458,7 @@ SQLite file per test and a controllable clock, so no test sleeps or depends on
 wall time. Set `FOCTRACK_TEST_DATABASE_URL` to a PostgreSQL DSN to run the same
 assertions against the hosted dialect.
 
-Result on this machine: **76 passed** on SQLite; CI runs the same suite against
+Result on this machine: **77 passed** on SQLite; CI runs the same suite against
 PostgreSQL 16 and it passes there too.
 
 ### Frontend — 26 tests
@@ -548,13 +549,15 @@ No database, browser-render or deployment benchmarks are claimed.
 | Analytics from stored rows | Passed |
 | Frontend production build | Passed |
 | Frontend/backend integration | Passed (local pair, then the deployed pair) |
-| PostgreSQL test run | Passed in CI (PostgreSQL 16 service, 76 tests) |
+| PostgreSQL test run | Passed in CI (PostgreSQL 16 service, 76 tests at the time; suite now 77) |
 | Account isolation (two accounts, every endpoint) | Passed (dedicated backend tests) |
 | Auth rate limiting and token revocation | Passed (dedicated backend tests) |
 | CSV import (valid and malformed rows) | Passed (9 dedicated tests) |
 | Dependency audit (pip-audit, npm audit) | Passed (0 known vulnerabilities) |
 | Dark and light themes | Rendered and visually checked |
 | Mobile layout (390 × 844) | Rendered and visually checked |
+| PWA install assets and offline shell | Passed (manifest, active service worker, login shell rendered with the network off) |
+| Authenticated API caching | Passed (cache inspection: 0 API entries) |
 | Deployed to Vercel/Render/Neon | Passed — [foctrack.vercel.app](https://foctrack.vercel.app), health and smoke checks run against the live pair |
 
 `npm audit --omit=dev` reports zero known vulnerabilities after the React
@@ -608,7 +611,9 @@ The current release has the following constraints.
 8. **Charts dominate the chart payload.** Recharts is isolated in a 114 kB gzip
    chunk that only the Overview and Analytics routes fetch. Replacing it with a
    lighter renderer remains a candidate optimization.
-9. **No offline mode.** The UI requires the API; there is no service worker.
+9. **Offline shell, not offline data.** FocTrack installs as a PWA and the app
+   shell loads without a network, but every number still comes from the API.
+   Authenticated API responses are explicitly never cached.
 10. **Import is session-level.** CSV rows create sessions with aggregate
     durations; individual interruptions are not reconstructed from CSV.
 11. **Historical days use the current UTC offset.** Analytics applies the

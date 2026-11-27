@@ -387,6 +387,7 @@ export const api = {
       method: "DELETE",
     }),
   downloadExport: () => download("/export", "foctrack-export.json"),
+  downloadExportCsv: () => download("/export/csv", "foctrack-sessions.csv"),
   downloadCsvTemplate: () => download("/import/csv/template", "foctrack-import-template.csv"),
   importCsv: async (file: File): Promise<ImportSummary> => {
     const form = new FormData();

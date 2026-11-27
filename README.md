@@ -38,9 +38,9 @@ quantities. Each distraction is stored with a reason and a timestamp, producing
 a dataset that answers specific questions: which categories consume the most
 focused hours, when attention breaks, and whether sessions are completed.
 
-Scope is intentionally narrow: one local profile, no social features, no
-subscription layer, no team management. FocTrack is a measurement tool, not a
-habit game.
+Scope is intentionally narrow: private individual accounts, no social features,
+no subscription layer, no team management. FocTrack is a measurement tool, not
+a habit game.
 
 ## Philosophy
 
@@ -49,7 +49,7 @@ habit game.
 | Measure, do not assume | Durations come from UTC timestamps, never from a ticking counter |
 | Separate focus from presence | Pauses and interruptions are tracked as distinct intervals |
 | Be honest about uncertainty | Empty states instead of fabricated statistics; insufficient-data instead of a fabricated score |
-| Local-first | Data lives in your own single-user database, never a shared service; export and deletion are first-class actions |
+| Private by default | Every account is isolated by `user_id`; no other account can read, export or delete your data, and export and deletion are first-class actions |
 | Explain every number | The focus score has visible weights and a documented formula |
 | Visual restraint | One accent colour, minimal motion, no decorative dashboards |
 
@@ -173,8 +173,9 @@ procedure: [`docs/deployment.md`](docs/deployment.md).
 | ORM | SQLAlchemy 2.0 | Typed mappings, explicit relationships |
 | Migrations | Alembic | Applied to `head` at startup |
 | Database | SQLite / PostgreSQL | SQLite locally; serverless PostgreSQL in deployment |
-| Backend tests | Pytest + HTTPX TestClient | 62 tests |
-| Frontend tests | Vitest + Testing Library | 20 tests |
+| Authentication | Bearer access tokens + rotated refresh tokens | Scrypt password hashes, optional Google sign-in |
+| Backend tests | Pytest + HTTPX TestClient | 76 tests (SQLite and PostgreSQL) |
+| Frontend tests | Vitest + Testing Library | 26 tests |
 | Deployment | Vercel (frontend) + Render (API) + Neon (database) | Live on free tiers |
 | Delivery | Route-level code splitting | Chart library isolated in its own chunk |
 
@@ -188,7 +189,8 @@ procedure: [`docs/deployment.md`](docs/deployment.md).
 
 | Table | Key columns | Purpose |
 |---|---|---|
-| `users` | `id`, `username`, `email`, `created_at` | Local profile (one per database) |
+| `users` | `id`, `username`, `email`, `password_hash`, `google_sub`, `email_verified`, `token_version`, `created_at` | One row per account |
+| `refresh_tokens` | `user_id`, `token_hash`, `expires_at`, `revoked_at` | Rotated sessions; only a SHA-256 digest is stored |
 | `categories` | `id`, `user_id`, `name`, `color`, `is_default` | Unique per user (case-insensitive) |
 | `focus_sessions` | `started_at`, `ended_at`, `status`, `target_duration`, `accumulated_active_seconds`, `paused_seconds`, `last_resumed_at`, `paused_at`, `focused_duration`, `interrupted_duration`, `is_demo` | Session record and clock anchors |
 | `interruptions` | `session_id`, `reason`, `custom_reason`, `notes`, `started_at`, `ended_at`, `duration` | Distraction intervals |
@@ -198,6 +200,8 @@ procedure: [`docs/deployment.md`](docs/deployment.md).
 Constraints and indexes:
 
 * `UNIQUE (user_id, name)` on categories.
+* `UNIQUE INDEX uq_users_email_lower ON users (lower(email))` — one account per
+  address regardless of the case used to type it.
 * `UNIQUE INDEX uq_open_session_per_user ON focus_sessions (user_id) WHERE status IN ('ACTIVE','PAUSED')`
   — makes two simultaneous sessions impossible even under concurrency.
 * Foreign keys with `CASCADE` for sessions → interruptions and users → data,
@@ -259,12 +263,22 @@ focused time     = max(0, active time − interrupted time)
 ## API
 
 Base path: `/api/v1`. Interactive documentation: `http://localhost:8000/docs`.
-All responses are camelCase JSON; all timestamps are ISO-8601 UTC.
+All responses are camelCase JSON; all timestamps are ISO-8601 UTC. Everything
+except `/health`, `/health/ready` and `/auth/*` requires
+`Authorization: Bearer <access token>`.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/health` | Service and database status |
-| `GET` | `/profile` · `PATCH /profile` | Local profile |
+| `GET` | `/health` | Cheap liveness probe (no database access) |
+| `GET` | `/health/ready` | Readiness probe; checks the database (`503` if down) |
+| `POST` | `/auth/register` | Create an account (`201`) |
+| `POST` | `/auth/login` · `/auth/google` | Start a session |
+| `POST` | `/auth/refresh` | Rotate the refresh token |
+| `POST` | `/auth/logout` · `/auth/logout-all` | End one session / every session |
+| `GET` | `/auth/me` | Current account |
+| `POST` | `/auth/change-password` | Change password and revoke old sessions |
+| `DELETE` | `/auth/account` | Delete the account and all its data |
+| `GET` | `/profile` · `PATCH /profile` | Read profile; edit display name only |
 | `GET` | `/sessions/active` | Open session for recovery (or `null`) |
 | `POST` | `/sessions` | Start a session (`201`) |
 | `GET` | `/sessions` | Paginated list with `search`, `categoryId`, `status`, `dateFrom`, `dateTo`, `sort` |
@@ -337,9 +351,12 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-On first start the API applies Alembic migrations, creates the local profile,
-seeds the eight default categories and serves `http://127.0.0.1:8000`.
-Swagger UI: `http://127.0.0.1:8000/docs`.
+On first start the API applies Alembic migrations and serves
+`http://127.0.0.1:8000`. Swagger UI: `http://127.0.0.1:8000/docs`.
+
+Open the web app, choose **Create an account**, and sign up. Registration creates
+the account plus its own settings and eight default categories; there is no
+shared profile and no seeded data.
 
 ### 2. Frontend
 
@@ -357,14 +374,9 @@ Open `http://localhost:5173`. The Vite dev server proxies `/api` to
 
 ### 3. Explore with sample data (optional)
 
-From the dashboard choose **Load sample data**, or:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/demo/seed
-```
-
-Demo sessions are flagged `isDemo` and labelled everywhere. Remove them with
-`DELETE /api/v1/demo` or from Settings.
+After signing in, use **Settings → Demo data → Add**. Demo sessions are flagged
+`isDemo` and labelled everywhere. Remove them the same way. No sample data is
+created for a new account automatically.
 
 ### Environment configuration
 
@@ -375,7 +387,11 @@ Copy `.env.example` to `backend/.env` and/or `frontend/.env`, then adjust:
 | `FOCTRACK_DATABASE_URL` | `sqlite:///backend/focustrack.db` | Database DSN; `postgres://` and `postgresql://` DSNs are accepted and use the psycopg 3 driver |
 | `FOCTRACK_ENVIRONMENT` | `development` | Environment label |
 | `FOCTRACK_CORS_ORIGINS` | local origins | Comma separated allowlist |
+| `FOCTRACK_JWT_SECRET` | dev-only fallback | Access-token signing key; **production refuses to boot under 32 characters** |
+| `FOCTRACK_GOOGLE_CLIENT_ID` | empty | Google OAuth Web client id; empty disables Google sign-in |
+| `FOCTRACK_TRUST_FORWARDED_FOR` | `false` | Trust `X-Forwarded-For` from Render for rate limiting |
 | `VITE_API_BASE_URL` | `/api/v1` | API base for the built frontend |
+| `VITE_GOOGLE_CLIENT_ID` | empty | Shows the Google button only when set |
 | `VITE_PROXY_TARGET` | `http://127.0.0.1:8000` | Dev proxy target |
 
 No `.env` file is committed. Secrets never appear in the repository.
@@ -404,8 +420,9 @@ behaviour:
   query. Connection pooling uses `pool_pre_ping` and a 300 second recycle, so a
   suspended database resumes instead of surfacing a stale-connection error.
   Startup migrations retry briefly rather than failing a deployment.
-* `FOCTRACK_DATABASE_URL` and `FOCTRACK_CORS_ORIGINS` are set in the Render
-  dashboard. The deployed frontend origin is the only allowed CORS origin.
+* `FOCTRACK_DATABASE_URL`, `FOCTRACK_CORS_ORIGINS` and
+  `FOCTRACK_JWT_SECRET` are set in the Render dashboard. The deployed frontend
+  origin is the only allowed CORS origin.
 * Alembic migrations run on every boot, so the schema is versioned in
   production exactly as it is locally.
 * Neon keeps an automatic point-in-time restore window on the free plan. For a
@@ -421,7 +438,7 @@ Step-by-step runbook, including CLI commands and verification:
 
 ## Testing
 
-### Backend — 62 tests
+### Backend — 76 tests
 
 ```bash
 cd backend
@@ -429,20 +446,21 @@ source .venv/bin/activate
 pytest
 ```
 
-Coverage includes session creation, duplicate-open prevention, pause/resume
-cycles, interruption math, timezone bucketing, invalid transitions,
-zero-activity completion, analytics aggregation, focus-score formula and
-insufficient data, category rules, settings validation, export, demo mode, CSV
-import (valid rows, malformed rows, duplicates, quoted fields, limits) and
-health/OpenAPI endpoints. The suite uses an isolated SQLite file per test and a
-controllable clock, so no test sleeps or depends on wall time. Set
-`FOCTRACK_TEST_DATABASE_URL` to a PostgreSQL DSN to run the same assertions
-against the hosted dialect.
+Coverage includes registration, login, duplicate-email handling, refresh
+rotation and replay detection, logout and logout-all, password changes, Google
+linking rules, expired/forged/stale tokens, login and registration rate limits,
+production secret enforcement, and full tenant isolation (sessions,
+interruptions, categories, analytics, export, import and deletion). The
+pre-existing session, analytics, focus-score, category, settings, CSV and
+health assertions all run behind real bearer tokens. The suite uses an isolated
+SQLite file per test and a controllable clock, so no test sleeps or depends on
+wall time. Set `FOCTRACK_TEST_DATABASE_URL` to a PostgreSQL DSN to run the same
+assertions against the hosted dialect.
 
-Result on this machine: **62 passed** on SQLite and **62 passed** on
-PostgreSQL 16.
+Result on this machine: **76 passed** on SQLite. The same suite also runs
+against PostgreSQL 16 in CI.
 
-### Frontend — 20 tests
+### Frontend — 26 tests
 
 ```bash
 cd frontend
@@ -452,11 +470,13 @@ npm test
 Coverage includes time formatting and rounding, day boundaries, timer rendering
 and screen-reader status, required-title validation, session creation with the
 selected category and target, dialog focus retention while a live timer
-re-renders the page, removal of a finished session from the active cache, and
-the retry policy that tolerates a cold-starting API (gateway errors, timeouts
-and 5xx responses).
+re-renders the page, removal of a finished session from the active cache, the
+retry policy that tolerates a cold-starting API (gateway errors, timeouts and
+5xx responses, but never a 401), session restoration, login, logout clearing
+the query cache, guarded-route redirects, and hiding the Google button when no
+client id is configured.
 
-Result on this machine: **20 passed across 6 files**.
+Result on this machine: **26 passed across 7 files**.
 
 ### Production build
 
@@ -522,15 +542,17 @@ No database, browser-render or deployment benchmarks are claimed.
 
 | Check | Status |
 |---|---|
-| Alembic upgrade from empty database | Passed (`0001_initial`) |
+| Alembic upgrade from empty database | Passed (`0001_initial` → `0002_auth`) |
 | API boots and serves health + Swagger | Passed |
 | Session lifecycle over HTTP | Passed (backend tests + manual smoke test) |
 | Analytics from stored rows | Passed |
 | Frontend production build | Passed |
 | Frontend/backend integration | Passed (local pair, then the deployed pair) |
-| PostgreSQL test run | Passed (62 tests, same assertions) |
+| PostgreSQL test run | Configured in CI (PostgreSQL 16 service); not yet observed green |
+| Account isolation (two accounts, every endpoint) | Passed (dedicated backend tests) |
+| Auth rate limiting and token revocation | Passed (dedicated backend tests) |
 | CSV import (valid and malformed rows) | Passed (9 dedicated tests) |
-| Dependency audit, production packages | Passed (0 known vulnerabilities) |
+| Dependency audit (pip-audit, npm audit) | Passed (0 known vulnerabilities) |
 | Dark and light themes | Rendered and visually checked |
 | Mobile layout (390 × 844) | Rendered and visually checked |
 | Deployed to Vercel/Render/Neon | Passed — [foctrack.vercel.app](https://foctrack.vercel.app), health and smoke checks run against the live pair |
@@ -563,29 +585,33 @@ remains the more appropriate tool when only time-boxing is required.
 
 The current release has the following constraints.
 
-1. **Single local profile.** There is no authentication, so the app is not safe
-   to expose publicly as a multi-user service. Every query is user-scoped, but
-   the profile is implicit.
-2. **Free-tier hosting.** The API sleeps after 15 minutes of inactivity, so the
+1. **No password reset or email verification yet.** Accounts are isolated and
+   rate-limited, but this deployment has no transactional email provider, so
+   the reset page says so instead of pretending. Email addresses created with a
+   password are marked unverified, which also blocks linking them to a Google
+   identity until verification exists.
+2. **Auth rate limiting is per process.** The API runs as one Render instance;
+   if it is ever scaled out, the limiter must move to a shared store.
+3. **Free-tier hosting.** The API sleeps after 15 minutes of inactivity, so the
    first request afterwards can take up to a minute to wake it. A keep-warm
    workflow mitigates this, and the client retries with a visible starting-up
    message. The database is a free Neon instance (0.5 GB) that suspends when
    idle. Fine for personal use; not an always-on service.
-3. **Analytics aggregate in Python.** Correct and portable, but not the fastest
+4. **Analytics aggregate in Python.** Correct and portable, but not the fastest
    approach for very large histories. Measured timings above reflect ~40 rows.
-4. **Reminders need an open tab.** Browser notifications fire only while the app
+5. **Reminders need an open tab.** Browser notifications fire only while the app
    is running in a tab; there is no service worker or push backend.
-5. **No automatic inactivity logging.** This is intentional: the interface
+6. **No automatic inactivity logging.** This is intentional: the interface
    prompts before anything is recorded.
-6. **Focus score is a heuristic.** It is transparent, but it is not a validated
+7. **Focus score is a heuristic.** It is transparent, but it is not a validated
    psychological instrument.
-7. **Charts dominate the chart payload.** Recharts is isolated in a 114 kB gzip
+8. **Charts dominate the chart payload.** Recharts is isolated in a 114 kB gzip
    chunk that only the Overview and Analytics routes fetch. Replacing it with a
    lighter renderer remains a candidate optimization.
-8. **No offline mode.** The UI requires the API; there is no service worker.
-9. **Import is session-level.** CSV rows create sessions with aggregate
-   durations; individual interruptions are not reconstructed from CSV.
-10. **Historical days use the current UTC offset.** Analytics applies the
+9. **No offline mode.** The UI requires the API; there is no service worker.
+10. **Import is session-level.** CSV rows create sessions with aggregate
+    durations; individual interruptions are not reconstructed from CSV.
+11. **Historical days use the current UTC offset.** Analytics applies the
     browser's present offset to past sessions, so a history spanning a daylight
     saving change can shift an old day by one hour. Storing the offset per
     session is the planned fix.
@@ -594,12 +620,13 @@ The current release has the following constraints.
 
 ## Roadmap
 
-The following items are not implemented in 1.0 and are ordered by expected
+The following items are not implemented in 1.1 and are ordered by expected
 value.
 
+- Password reset and email verification through a transactional email provider
+- Automation coverage (Playwright) for the full sign-up → record → sign-out journey
 - Trim the chart chunk by replacing Recharts or lazy-mounting below-fold charts
 - Weekly review view with goal setting and comparison
-- Optional account layer (passkeys or OAuth) with per-user isolation
 - Offline-first PWA shell with a sync queue
 - Keyboard-first command palette and timer shortcuts
 
@@ -640,5 +667,5 @@ distribute or use the work without prior written permission. See
 [LICENSE](LICENSE) for the full terms and the permission contact.
 
 <p align="center">
-  <sub>FocTrack 1.0 · Local-first focus analytics</sub>
+  <sub>FocTrack 1.1 · Private focus analytics</sub>
 </p>

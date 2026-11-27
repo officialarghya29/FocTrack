@@ -44,8 +44,9 @@ postgresql://<role>:<password>@<endpoint>.<region>.aws.neon.tech/focustrack?sslm
    The API accepts `postgres://` and `postgresql://` DSNs and pins the psycopg 3
    driver itself, so the string can be pasted exactly as the provider prints it.
 
-No schema step is needed: the API runs `alembic upgrade head` on boot, creates
-the profile and seeds the eight default categories.
+No schema step is needed: the API runs `alembic upgrade head` on boot. It does
+not create a profile — people create their own account through the web app, and
+registration creates that account's settings and eight default categories.
 
 ## 2. API on Render
 
@@ -64,6 +65,9 @@ CLI, with these settings:
 | `FOCTRACK_ENVIRONMENT` | `production` |
 | `FOCTRACK_DATABASE_URL` | the Neon DSN (secret, dashboard or CLI only) |
 | `FOCTRACK_CORS_ORIGINS` | `https://foctrack.vercel.app` |
+| `FOCTRACK_JWT_SECRET` | a random value of at least 32 characters (secret) |
+| `FOCTRACK_GOOGLE_CLIENT_ID` | the OAuth Web client id, when Google sign-in is enabled |
+| `FOCTRACK_TRUST_FORWARDED_FOR` | `true` (Render terminates TLS and sets the header) |
 
 ```bash
 render workspace set <workspace-id>
@@ -76,8 +80,20 @@ render services create \
   --health-check-path /api/v1/health \
   --env-var FOCTRACK_ENVIRONMENT=production \
   --env-var "FOCTRACK_DATABASE_URL=<neon-dsn>" \
-  --env-var FOCTRACK_CORS_ORIGINS=https://foctrack.vercel.app
+  --env-var FOCTRACK_CORS_ORIGINS=https://foctrack.vercel.app \
+  --env-var "FOCTRACK_JWT_SECRET=<at-least-32-random-characters>" \
+  --env-var FOCTRACK_TRUST_FORWARDED_FOR=true
 ```
+
+Generate the signing secret locally, never in a tracked file:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+In production the API refuses to start when `FOCTRACK_JWT_SECRET` is missing or
+shorter than 32 characters. That is deliberate: a weak signing key would make
+every access token forgeable.
 
 This service was created from the CLI and has no GitHub webhook, so a push does
 not deploy it. Either install the Render GitHub App on the repository (Render
@@ -129,6 +145,9 @@ Run these against the deployed pair, not localhost.
 
 ```bash
 curl -s https://foctrack-api.onrender.com/api/v1/health
+# {"status":"ok",...}  (cheap liveness; no database access)
+
+curl -s https://foctrack-api.onrender.com/api/v1/health/ready
 # {"status":"ok","database":"ok",...}
 
 # CORS must echo the frontend origin
@@ -137,12 +156,22 @@ curl -s -o /dev/null -D - -X OPTIONS \
   -H "Origin: https://foctrack.vercel.app" \
   -H "Access-Control-Request-Method: POST" | grep -i access-control-allow-origin
 
-curl -s https://foctrack-api.onrender.com/api/v1/profile
-curl -s https://foctrack-api.onrender.com/api/v1/categories
+# Unauthenticated data requests must be rejected
+curl -s -o /dev/null -w '%{http_code}\n' https://foctrack-api.onrender.com/api/v1/sessions
+# 401
+
+# A fresh account proves the auth path end to end
+curl -s -X POST https://foctrack-api.onrender.com/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"smoke@example.com","password":"a-long-smoke-password","username":"Smoke"}'
+# 201 with accessToken and refreshToken
 ```
 
 Then, in the browser:
 
+0. Create an account, sign out, create a second account, and confirm the second
+   account sees empty states while the first account's session survives a
+   sign-in.
 1. The dashboard loads with empty states and zeroed metrics.
 2. Start a session, refresh, and confirm the timer continues from the
    server-reconciled duration.
@@ -157,7 +186,7 @@ Then, in the browser:
 * **Cold starts.** The Render free service sleeps after 15 minutes without
   inbound traffic and takes up to a minute to wake. The Neon compute suspends
   when idle as well. The first request after a quiet period is slow, not broken.
-* **Keep-warm.** `.github/workflows/keep-warm.yml` requests `/health` every five
+* **Keep-warm.** `.github/workflows/keep-warm.yml` requests `/health/ready` every five
   minutes, which keeps the free instance inside its 750 monthly hours (744 for
   an always-on service). Scheduled workflows do not consume paid Actions
   minutes on a public repository. GitHub can delay or drop a scheduled run,
@@ -184,15 +213,54 @@ Then, in the browser:
   ```
 
   The DSN is read from the environment, never written into a tracked file.
-* **Single profile.** There is no authentication. Do not advertise the
-  deployment as a multi-user service.
-* **Scaling.** One API instance. Multiple workers are unnecessary for a
-  single-profile app and would only add database connections.
+* **Accounts.** Each visitor creates a private account; every query is scoped
+  by the authenticated user id. The legacy pre-auth profile row is deliberately
+  left unclaimed and is not attached to any new registration.
+* **Rate limiting.** Login (5/min per IP+email), registration (5/hour per IP),
+  Google (20/min per IP) and refresh (30/min per IP) return `429` with
+  `Retry-After`. The limiter is in-process, which is correct for this
+  single-instance deployment; scaling out requires a shared store.
+* **Security headers.** The frontend sends a CSP that allows only the API
+  origin and Google Identity Services. If the API host changes, update both
+  `VITE_API_BASE_URL` and the CSP `connect-src`.
+* **Scaling.** One API instance. Multiple workers would require moving the
+  in-process rate limiter to a shared store and adding database connections.
 * **CORS.** Compare the exact frontend origin (scheme, host, port) with
   `FOCTRACK_CORS_ORIGINS`. After changing it, redeploy the API so the new
   environment is loaded.
 * **Migrations.** Additive only. The API applies `head` on boot and fails the
   boot if a migration fails, rather than serving a half-migrated schema.
+
+## 5.1 Google sign-in (optional)
+
+Password sign-in works without any Google configuration. To enable the Google
+button:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
+   create an **OAuth client ID → Web application**.
+2. Add an **Authorized JavaScript origin**: `https://foctrack.vercel.app`
+   (plus `http://localhost:5173` for local development).
+3. Set `FOCTRACK_GOOGLE_CLIENT_ID` on Render and `VITE_GOOGLE_CLIENT_ID` for the
+   Vercel Production environment, using the same client id.
+4. Redeploy both: the API needs the id to verify tokens, and the frontend
+   rebuild inlines `VITE_GOOGLE_CLIENT_ID`. The button is hidden when it is unset.
+
+There is no client secret in this flow: the browser receives a signed ID token
+from Google Identity Services and the API verifies its signature, audience,
+issuer and expiry against Google's published keys. A Google email is linked to
+an existing account only when that account already has a verified email.
+
+## 5.2 Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and on pull requests:
+
+* backend lint (`ruff`) and the full pytest suite on SQLite;
+* the same suite against a PostgreSQL 16 service container;
+* frontend typecheck, Vitest and a production build.
+
+The checks are independent of the deployment. To make them block merges, enable
+branch protection for `main` in GitHub → Settings → Branches and require the
+three CI jobs.
 
 ## 6. CLI reference
 

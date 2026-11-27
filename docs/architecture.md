@@ -124,8 +124,17 @@ silently retries a mutation that could duplicate a session.
 
 ## Security and privacy
 
-* Local-profile mode: one profile per database, no passwords, no pretend
-  multi-user authentication. Every query is still scoped by `user_id`.
+* Real accounts: scrypt password hashes, optional Google sign-in, short-lived
+  HS256 access tokens and opaque refresh tokens stored only as SHA-256 digests.
+  Rotating a reused refresh token revokes the whole session family, and a
+  `token_version` bump invalidates every outstanding access token.
+* Every query is scoped by `user_id`. Tenant isolation is covered by dedicated
+  tests across sessions, interruptions, categories, analytics, export and import.
+* Auth endpoints are rate limited per client address (and per email for login).
+  The limiter is in-process, which matches the single-instance deployment.
+* Email is read-only after registration; Google is linked only by an already
+  verified email, preventing an address from being captured before its owner
+  signs in.
 * No keystroke logging, screenshots or browsing collection. The optional
   inactivity prompt listens for activity events only to keep an in-memory
   timestamp, and never logs an interruption on its own.
@@ -138,8 +147,9 @@ silently retries a mutation that could duplicate a session.
 
 The shipped deployment runs entirely on free tiers:
 
-* **Frontend:** static build on Vercel (`frontend/vercel.json` adds the SPA
-  rewrite). `VITE_API_BASE_URL` is inlined at build time.
+* **Frontend:** static build on Vercel (the root `vercel.json` builds
+  `frontend/` and adds the SPA rewrite plus security headers).
+  `VITE_API_BASE_URL` is inlined at build time.
 * **Backend:** Render free web service, configured by `render.yaml` and
   provisioned through the Render CLI. Startup applies Alembic migrations to
   `head`.

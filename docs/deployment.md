@@ -160,8 +160,11 @@ Then, in the browser:
 * **Keep-warm.** `.github/workflows/keep-warm.yml` requests `/health` every five
   minutes, which keeps the free instance inside its 750 monthly hours (744 for
   an always-on service). Scheduled workflows do not consume paid Actions
-  minutes on a public repository. Disable the workflow if the API is not meant
-  to stay up, and expect cold starts to return.
+  minutes on a public repository. GitHub can delay or drop a scheduled run,
+  especially for a newly added workflow, so treat this as an optimisation: the
+  client timeout and retry path is what keeps a visitor from getting stuck.
+  Run it on demand with `gh workflow run keep-warm.yml`. Disable it if the API
+  is not meant to stay up and expect cold starts to return.
 * **Client deadlines.** The web client aborts a request after 30 seconds and
   retries gateway errors, timeouts and 5xx responses four times with backoff.
   A loading block also explains that the free API may be starting up after six

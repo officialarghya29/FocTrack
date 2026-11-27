@@ -395,10 +395,11 @@ The deployment runs entirely on free tiers, which shapes the operational
 behaviour:
 
 * The Render service sleeps after 15 minutes without traffic. A scheduled
-  GitHub Actions workflow pings `/health` every five minutes so it stays awake
-  inside the 750 free instance-hours; if a request still meets a waking
-  instance, the client waits up to 30 seconds, retries with backoff and shows
-  that the API is starting instead of spinning forever.
+  GitHub Actions workflow pings `/health` every five minutes to keep it awake
+  inside the 750 free instance-hours (schedule delivery can be delayed, so it
+  is an optimisation, not a guarantee). The real guarantee is client-side:
+  requests time out after 30 seconds, retry with backoff, and say the API is
+  starting instead of spinning forever.
 * The Neon database suspends its compute when idle and resumes on the next
   query. Connection pooling uses `pool_pre_ping` and a 300 second recycle, so a
   suspended database resumes instead of surfacing a stale-connection error.

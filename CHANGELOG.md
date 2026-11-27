@@ -4,6 +4,11 @@
 
 ### Added
 
+* Password reset and email verification. Links are single-purpose, expire
+  (30 minutes for reset, 24 hours for verification), and a reset consumes the
+  link and signs out every other session. Delivery goes through Resend using
+  `FOCTRACK_RESEND_API_KEY`; without a key production returns `503` and local
+  development logs the link.
 * Installable PWA: manifest, 192/512/maskable icons, offline app shell and a
   service worker that never caches authenticated API responses.
 * CSV session export (`GET /export/csv`) with the same column names the importer

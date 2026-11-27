@@ -181,6 +181,61 @@ def refresh_token_digest(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+ACTION_TOKEN_TYPES = {"password_reset", "email_verify"}
+
+
+def create_action_token(
+    user_id: int,
+    purpose: str,
+    *,
+    minutes: int,
+    email: str | None = None,
+    token_version: int | None = None,
+) -> str:
+    """Mint a short-lived, single-purpose link token.
+
+    The `type` claim keeps these apart from access tokens, and a password reset
+    also carries the user's token version so completing it invalidates every
+    other session (and the link itself) at the same time.
+    """
+    if purpose not in ACTION_TOKEN_TYPES:
+        raise ValueError(f"Unknown action token type: {purpose}")
+    now = datetime.now(timezone.utc)
+    payload: dict = {
+        "sub": str(user_id),
+        "type": purpose,
+        "jti": secrets.token_urlsafe(9),
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=minutes)).timestamp()),
+    }
+    if email is not None:
+        payload["email"] = email
+    if token_version is not None:
+        payload["tv"] = token_version
+    return jwt.encode(payload, settings.jwt_secret, algorithm=JWT_ALGORITHM)
+
+
+def decode_action_token(token: str, purpose: str) -> dict:
+    """Validate a link token and return its claims, uniformly on failure."""
+    invalid = AuthError("This link is invalid or has expired. Request a new one.", 400)
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=[JWT_ALGORITHM],
+            options={"require": ["exp", "iat", "sub", "type"]},
+        )
+    except jwt.InvalidTokenError as exc:
+        raise invalid from exc
+    if payload.get("type") != purpose:
+        raise invalid
+    try:
+        payload["user_id"] = int(payload["sub"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise invalid from exc
+    return payload
+
+
 def bearer_token(authorization: str | None) -> str:
     if not authorization:
         raise AuthError("Authentication required.")

@@ -8,7 +8,10 @@ tokens.
 
 from __future__ import annotations
 
+import html
+import logging
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +22,8 @@ from app.core.google_auth import verify_google_id_token
 from app.core.security import (
     AuthError,
     create_access_token,
+    create_action_token,
+    decode_action_token,
     hash_password,
     new_refresh_token,
     normalise_email,
@@ -28,7 +33,14 @@ from app.core.security import (
     verify_password,
 )
 from app.models import Category, RefreshToken, User, UserSettings
+from app.services import email_service
 from app.services.profile_service import DEFAULT_CATEGORIES, DEFAULT_PROFILE_NAME
+
+logger = logging.getLogger("foctrack")
+
+PASSWORD_RESET_MINUTES = 30
+EMAIL_VERIFY_MINUTES = 24 * 60
+INVALID_LINK = "This link is invalid or has expired. Request a new one."
 
 
 def create_user_with_defaults(
@@ -84,6 +96,128 @@ def register(db: Session, *, email: str, password: str, username: str) -> User:
         password_hash=hash_password(password),
         email_verified=False,
     )
+
+
+def _action_link(path: str, token: str) -> str:
+    return f"{settings.app_url.rstrip('/')}/{path}?token={quote(token)}"
+
+
+def send_verification_email(user: User) -> bool:
+    """Send (or log) an address-verification link for a password account."""
+    if not user.email or not user.password_hash or user.email_verified:
+        return False
+    token = create_action_token(
+        user.id,
+        "email_verify",
+        minutes=EMAIL_VERIFY_MINUTES,
+        email=user.email,
+    )
+    link = _action_link("verify-email", token)
+    name = html.escape(user.username or "there")
+    text = (
+        f"Hi {user.username or 'there'},\n\n"
+        "Confirm this address to finish setting up your FocTrack account:\n"
+        f"{link}\n\nThis link works once and expires in 24 hours. "
+        "If you did not create the account, ignore this message."
+    )
+    body = (
+        f"<p>Hi {name},</p>"
+        "<p>Confirm this address to finish setting up your FocTrack account.</p>"
+        f'<p><a href="{html.escape(link)}">Verify my email</a></p>'
+        "<p>This link works once and expires in 24 hours. "
+        "If you did not create the account, ignore this message.</p>"
+    )
+    return email_service.send_email(
+        to=user.email,
+        subject="Verify your FocTrack email",
+        text=text,
+        html=body,
+    )
+
+
+def send_verification_best_effort(user: User) -> None:
+    """Registration must succeed even when the mail provider misbehaves."""
+    try:
+        send_verification_email(user)
+    except AuthError as exc:
+        logger.warning("Verification email not sent for user %s: %s", user.id, exc.detail)
+
+
+def request_password_reset(db: Session, email: str) -> None:
+    """Start a reset without revealing whether the address has an account."""
+    email_service.require_configured()
+    user = get_user_by_email(db, email)
+    if user is None or not user.password_hash or not user.email:
+        return
+    token = create_action_token(
+        user.id,
+        "password_reset",
+        minutes=PASSWORD_RESET_MINUTES,
+        token_version=user.token_version,
+    )
+    link = _action_link("reset-password", token)
+    text = (
+        f"Hi {user.username or 'there'},\n\n"
+        "Use this link to choose a new FocTrack password:\n"
+        f"{link}\n\nThis link works once, expires in 30 minutes, and signs out "
+        "every other session. If you did not ask for this, ignore the message."
+    )
+    body = (
+        f"<p>Hi {html.escape(user.username or 'there')},</p>"
+        "<p>Use the link below to choose a new FocTrack password.</p>"
+        f'<p><a href="{html.escape(link)}">Choose a new password</a></p>'
+        "<p>This link works once, expires in 30 minutes, and signs out every "
+        "other session. If you did not ask for this, ignore the message.</p>"
+    )
+    email_service.send_email(
+        to=user.email,
+        subject="Reset your FocTrack password",
+        text=text,
+        html=body,
+    )
+
+
+def reset_password(db: Session, token: str, new_password: str) -> None:
+    claims = decode_action_token(token, "password_reset")
+    user = db.get(User, claims["user_id"])
+    if (
+        user is None
+        or not user.password_hash
+        or claims.get("tv") != user.token_version
+    ):
+        raise AuthError(INVALID_LINK, 400)
+    problem = password_problem(new_password)
+    if problem:
+        raise AuthError(problem, 422)
+    user.password_hash = hash_password(new_password)
+    # Rotating the token version makes this link single-use and ends every
+    # existing session, which is the safe outcome after a reset.
+    revoke_all(db, user.id)
+    db.commit()
+
+
+def verify_email(db: Session, token: str) -> User:
+    claims = decode_action_token(token, "email_verify")
+    user = db.get(User, claims["user_id"])
+    if (
+        user is None
+        or not user.email
+        or claims.get("email") != user.email
+        or not valid_email(user.email)
+    ):
+        raise AuthError(INVALID_LINK, 400)
+    if not user.email_verified:
+        user.email_verified = 1
+        db.commit()
+    return user
+
+
+def request_email_verification(db: Session, email: str) -> None:
+    email_service.require_configured()
+    user = get_user_by_email(db, email)
+    if user is None:
+        return
+    send_verification_email(user)
 
 
 def authenticate(db: Session, *, email: str, password: str) -> User:

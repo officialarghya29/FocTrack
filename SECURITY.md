@@ -40,9 +40,11 @@ before public disclosure.
 
 ## Known gaps
 
-* No password reset or email verification yet (no email provider configured).
+* Password reset and email verification are implemented but require
+  `FOCTRACK_RESEND_API_KEY`; without it production answers `503` and no mail is
+  sent.
 * The rate limiter is process-local and assumes one API instance.
 * Dependency scanning runs in CI with `pip-audit` and `npm audit --omit=dev`;
-  Dependabot opens weekly update pull requests. Neither is a substitute for a
-  full external audit.
+  Dependabot is configured not to open update pull requests, so updates are
+  applied manually. Neither is a substitute for a full external audit.
 * Error monitoring (Sentry) is not configured for this deployment.

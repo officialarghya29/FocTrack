@@ -67,6 +67,9 @@ CLI, with these settings:
 | `FOCTRACK_CORS_ORIGINS` | `https://foctrack.vercel.app` |
 | `FOCTRACK_JWT_SECRET` | a random value of at least 32 characters (secret) |
 | `FOCTRACK_GOOGLE_CLIENT_ID` | the OAuth Web client id, when Google sign-in is enabled |
+| `FOCTRACK_RESEND_API_KEY` | Resend API key, for password reset and verification mail |
+| `FOCTRACK_EMAIL_FROM` | verified sender, e.g. `FocTrack <hello@your-domain>` |
+| `FOCTRACK_APP_URL` | `https://foctrack.vercel.app` (used inside email links) |
 | `FOCTRACK_TRUST_FORWARDED_FOR` | `true` (Render terminates TLS and sets the header) |
 
 ```bash
@@ -249,6 +252,25 @@ There is no client secret in this flow: the browser receives a signed ID token
 from Google Identity Services and the API verifies its signature, audience,
 issuer and expiry against Google's published keys. A Google email is linked to
 an existing account only when that account already has a verified email.
+
+## 5.1.1 Email delivery
+
+Password reset and address verification use the [Resend](https://resend.com)
+HTTP API through `FOCTRACK_RESEND_API_KEY`. Without the key the endpoints are
+safe but inactive: production returns `503`, and local development logs the
+link instead of sending it.
+
+1. Create a Resend account and API key.
+2. Verify a sending domain, then set `FOCTRACK_EMAIL_FROM` to an address on it.
+   `onboarding@resend.dev` works only for testing and delivers solely to the
+   Resend account owner.
+3. Add `FOCTRACK_RESEND_API_KEY`, `FOCTRACK_EMAIL_FROM` and `FOCTRACK_APP_URL`
+   to the Render service, then redeploy.
+
+Links expire after 30 minutes (reset) or 24 hours (verification). A reset
+invalidates the link and signs out every other session. Requests always answer
+`202` for unknown addresses, so the endpoint cannot be used to enumerate
+accounts.
 
 ## 5.2 Continuous integration
 

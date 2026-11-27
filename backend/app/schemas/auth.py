@@ -61,5 +61,18 @@ class DeleteAccountIn(APIModel):
     google_id_token: str | None = Field(default=None, max_length=8192)
 
 
+class ForgotPasswordIn(APIModel):
+    email: str = Field(min_length=3, max_length=255)
+
+
+class ResetPasswordIn(APIModel):
+    token: str = Field(min_length=10, max_length=4096)
+    new_password: str = Field(min_length=1, max_length=128)
+
+
+class VerifyEmailIn(APIModel):
+    token: str = Field(min_length=10, max_length=4096)
+
+
 class MessageOut(APIModel):
     message: str

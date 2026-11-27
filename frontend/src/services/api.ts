@@ -291,6 +291,30 @@ export const authApi = {
     }),
   deleteAccount: (data: { password?: string; googleIdToken?: string }) =>
     request<void>("/auth/account", { method: "DELETE", ...body(data) }),
+  forgotPassword: (email: string) =>
+    request<{ message: string }>(
+      "/auth/forgot-password",
+      { method: "POST", ...body({ email }) },
+      { retryAuth: false }
+    ),
+  resetPassword: (token: string, newPassword: string) =>
+    request<void>(
+      "/auth/reset-password",
+      { method: "POST", ...body({ token, newPassword }) },
+      { retryAuth: false }
+    ),
+  verifyEmail: (token: string) =>
+    request<void>(
+      "/auth/verify-email",
+      { method: "POST", ...body({ token }) },
+      { retryAuth: false }
+    ),
+  resendVerification: (email: string) =>
+    request<{ message: string }>(
+      "/auth/resend-verification",
+      { method: "POST", ...body({ email }) },
+      { retryAuth: false }
+    ),
 };
 
 export const api = {

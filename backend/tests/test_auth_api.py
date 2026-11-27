@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 
 import jwt
@@ -8,6 +9,7 @@ from pydantic import ValidationError
 
 from app.core.config import Settings, settings
 from app.core.security import AuthError, create_access_token
+from app.services import email_service
 from tests.conftest import start_session
 
 PASSWORD = "a-long-unique-password-9"
@@ -353,3 +355,111 @@ def test_production_requires_a_strong_secret():
         Settings(environment="production", jwt_secret="short")
     strong = Settings(environment="production", jwt_secret="x" * 48)
     assert strong.environment == "production"
+
+
+# --------------------------------------------------------------------------- #
+# Password reset and email verification
+# --------------------------------------------------------------------------- #
+
+def captured_emails(monkeypatch):
+    sent: list[dict] = []
+
+    def fake_send(*, to, subject, text, html=None):
+        sent.append({"to": to, "subject": subject, "text": text})
+        return True
+
+    monkeypatch.setattr(email_service, "send_email", fake_send)
+    return sent
+
+
+def token_from_email(message: dict) -> str:
+    match = re.search(r"[?&]token=([A-Za-z0-9_.\-]+)", message["text"])
+    assert match, message["text"]
+    return match.group(1)
+
+
+def test_signup_sends_a_verification_link_that_marks_the_email(env, monkeypatch):
+    sent = captured_emails(monkeypatch)
+    response = register(env.anonymous_client, email="verify-me@example.com")
+    assert response.status_code == 201, response.text
+    assert len(sent) == 1
+    assert sent[0]["to"] == "verify-me@example.com"
+
+    token = token_from_email(sent[0])
+    assert env.anonymous_client.post(
+        "/api/v1/auth/verify-email", json={"token": token}
+    ).status_code == 204
+    me = env.client.get("/api/v1/auth/me").json()
+    assert me["email"] == "test@example.com"  # the fixture account
+    # The new account's token is valid regardless of which client presents it.
+    new_login = login(env.anonymous_client, "verify-me@example.com", PASSWORD)
+    assert new_login.status_code == 200
+    headers = bearer(new_login.json()["accessToken"])
+    assert env.anonymous_client.get("/api/v1/auth/me", headers=headers).json()[
+        "emailVerified"
+    ] is True
+
+    # A verified address is not mailed again.
+    before = len(sent)
+    assert env.anonymous_client.post(
+        "/api/v1/auth/resend-verification", json={"email": "verify-me@example.com"}
+    ).status_code == 202
+    assert len(sent) == before
+
+
+def test_password_reset_is_single_use_and_rotates_sessions(env, monkeypatch):
+    sent = captured_emails(monkeypatch)
+    assert register(env.anonymous_client, email="reset-me@example.com").status_code == 201
+    sent.clear()
+
+    assert env.anonymous_client.post(
+        "/api/v1/auth/forgot-password", json={"email": "reset-me@example.com"}
+    ).status_code == 202
+    assert len(sent) == 1
+    reset_token = token_from_email(sent[0])
+
+    reset = env.anonymous_client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": reset_token, "newPassword": NEW_PASSWORD},
+    )
+    assert reset.status_code == 204, reset.text
+    assert login(env.anonymous_client, "reset-me@example.com", PASSWORD).status_code == 401
+    assert login(env.anonymous_client, "reset-me@example.com", NEW_PASSWORD).status_code == 200
+
+    # The link was consumed: the token version moved on with the reset.
+    reuse = env.anonymous_client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": reset_token, "newPassword": "third-strong-password-4"},
+    )
+    assert reuse.status_code == 400
+
+
+def test_unknown_addresses_get_the_same_neutral_answer(env, monkeypatch):
+    sent = captured_emails(monkeypatch)
+    assert env.anonymous_client.post(
+        "/api/v1/auth/forgot-password", json={"email": "nobody@example.com"}
+    ).status_code == 202
+    assert sent == []
+    assert env.anonymous_client.post(
+        "/api/v1/auth/resend-verification", json={"email": "nobody@example.com"}
+    ).status_code == 202
+    assert sent == []
+
+
+def test_registration_survives_an_email_outage(env, monkeypatch):
+    def explode(**kwargs):
+        raise AuthError("The email service is unreachable.", 502)
+
+    monkeypatch.setattr(email_service, "send_email", explode)
+    response = register(env.anonymous_client, email="outage@example.com")
+    assert response.status_code == 201, response.text
+
+
+def test_malformed_links_are_rejected(env):
+    assert env.anonymous_client.post(
+        "/api/v1/auth/verify-email", json={"token": "not-a-real-token-at-all"}
+    ).status_code == 400
+    assert env.anonymous_client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "not-a-real-token-at-all", "newPassword": NEW_PASSWORD},
+    ).status_code == 400

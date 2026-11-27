@@ -17,7 +17,7 @@ import {
   Volume2,
   X,
 } from "lucide-react";
-import { api } from "../services/api";
+import { api, authApi } from "../services/api";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { GoogleButton } from "../components/auth/GoogleButton";
@@ -83,6 +83,8 @@ export function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
   const [confirmSignOutAll, setConfirmSignOutAll] = useState(false);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -304,9 +306,32 @@ export function SettingsPage() {
                 )}
               </div>
               <p className="mt-1.5 text-[10px] leading-relaxed text-muted">
-                Your email is your sign-in identity, so it cannot be edited here. Changing it
-                needs a verification email, which this deployment does not send yet.
+                Your email is your sign-in identity, so it cannot be edited here. Verifying
+                it allows a Google sign-in to be linked to this account.
               </p>
+              {user?.email && !user.emailVerified ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={verificationBusy}
+                    onClick={() => {
+                      setVerificationMessage(null);
+                      setVerificationBusy(true);
+                      authApi
+                        .resendVerification(user.email as string)
+                        .then((result) => setVerificationMessage(result.message))
+                        .catch((failure) => setVerificationMessage(errorMessage(failure)))
+                        .finally(() => setVerificationBusy(false));
+                    }}
+                  >
+                    {verificationBusy ? "Sending…" : "Resend verification email"}
+                  </button>
+                  {verificationMessage ? (
+                    <span className="text-[10px] text-muted">{verificationMessage}</span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
               <p className="text-[11px] text-muted">

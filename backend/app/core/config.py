@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     access_token_minutes: int = 30
     refresh_token_days: int = 14
     google_client_id: str = ""
+    # Transactional email (password reset and address verification). The Resend
+    # HTTP API needs one key; without it the production endpoints stay off
+    # rather than pretending a message was sent.
+    resend_api_key: str = ""
+    email_from: str = "FocTrack <onboarding@resend.dev>"
+    # Public frontend origin used to build links inside those emails.
+    app_url: str = "https://foctrack.vercel.app"
     # Rate limiting needs the real client address. Render terminates TLS and
     # forwards X-Forwarded-For; only enable this behind a trusted proxy.
     trust_forwarded_for: bool = False

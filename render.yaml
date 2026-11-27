@@ -27,6 +27,14 @@ services:
       # Required for Google sign-in; leave unset to keep password-only auth.
       - key: FOCTRACK_GOOGLE_CLIENT_ID
         sync: false
+      # Password reset and email verification. Leave unset and production
+      # answers 503 instead of pretending a message was sent.
+      - key: FOCTRACK_RESEND_API_KEY
+        sync: false
+      - key: FOCTRACK_EMAIL_FROM
+        sync: false
+      - key: FOCTRACK_APP_URL
+        value: https://foctrack.vercel.app
       # Render terminates TLS and forwards the real client address.
       - key: FOCTRACK_TRUST_FORWARDED_FOR
         value: "true"

@@ -33,6 +33,16 @@ const ForgotPasswordPage = lazy(() =>
     default: module.ForgotPasswordPage,
   }))
 );
+const ResetPasswordPage = lazy(() =>
+  import("./pages/ResetPassword").then((module) => ({
+    default: module.ResetPasswordPage,
+  }))
+);
+const VerifyEmailPage = lazy(() =>
+  import("./pages/VerifyEmail").then((module) => ({
+    default: module.VerifyEmailPage,
+  }))
+);
 
 export default function App() {
   return (
@@ -61,6 +71,16 @@ export default function App() {
           </PublicOnly>
         }
       />
+      <Route
+        path="reset-password"
+        element={
+          <PublicOnly>
+            <ResetPasswordPage />
+          </PublicOnly>
+        }
+      />
+      {/* Works signed in or out: verification links can arrive in any tab. */}
+      <Route path="verify-email" element={<VerifyEmailPage />} />
 
       <Route
         element={

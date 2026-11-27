@@ -301,6 +301,10 @@ except `/health`, `/health/ready` and `/auth/*` requires
 | `GET` | `/analytics/categories` | `?days=` |
 | `GET` | `/analytics/focus-score` | Score plus components |
 | `GET` | `/analytics/insights` | Distributions and reasons |
+| `POST` | `/auth/forgot-password` | Email a one-time reset link (neutral answer) |
+| `POST` | `/auth/reset-password` | Set a new password from that link |
+| `POST` | `/auth/verify-email` | Confirm an address from its link |
+| `POST` | `/auth/resend-verification` | Send a fresh verification link |
 | `GET` | `/export` | Full JSON export download |
 | `GET` | `/export/csv` | Flat session CSV that matches the importer's columns |
 | `GET` | `/import/csv/template` | Download the CSV import template |
@@ -590,11 +594,13 @@ remains the more appropriate tool when only time-boxing is required.
 
 The current release has the following constraints.
 
-1. **No password reset or email verification yet.** Accounts are isolated and
-   rate-limited, but this deployment has no transactional email provider, so
-   the reset page says so instead of pretending. Email addresses created with a
-   password are marked unverified, which also blocks linking them to a Google
-   identity until verification exists.
+1. **Email needs a provider key.** Password reset and address verification are
+   implemented and rate-limited, but the live deployment only sends mail once
+   `FOCTRACK_RESEND_API_KEY` is set on Render and the sender is allowed to
+   deliver. Until then production answers `503` for those requests instead of
+   pretending, and local development writes the link to the API log. Addresses
+   created with a password stay unverified and cannot be linked to a Google
+   identity until the message is actually delivered and the link opened.
 2. **Auth rate limiting is per process.** The API runs as one Render instance;
    if it is ever scaled out, the limiter must move to a shared store.
 3. **Free-tier hosting.** The API sleeps after 15 minutes of inactivity, so the

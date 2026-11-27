@@ -10,12 +10,16 @@ from app.models import User
 from app.schemas.auth import (
     ChangePasswordIn,
     DeleteAccountIn,
+    ForgotPasswordIn,
     GoogleIn,
     LoginIn,
+    MessageOut,
     RefreshIn,
     RegisterIn,
+    ResetPasswordIn,
     SessionOut,
     UserOut,
+    VerifyEmailIn,
 )
 from app.services import auth_service
 
@@ -43,7 +47,51 @@ def register(payload: RegisterIn, request: Request, db: Session = Depends(get_db
     user = auth_service.register(
         db, email=payload.email, password=payload.password, username=payload.username
     )
+    # Best effort: a mail outage must not undo a successful registration.
+    auth_service.send_verification_best_effort(user)
     return session_out(auth_service.issue_session(db, user))
+
+
+@router.post("/forgot-password", response_model=MessageOut, status_code=status.HTTP_202_ACCEPTED)
+def forgot_password(
+    payload: ForgotPasswordIn, request: Request, db: Session = Depends(get_db)
+):
+    enforce(request, "forgot-password", 5, 3600, payload.email)
+    auth_service.request_password_reset(db, payload.email)
+    # Same answer whether or not the address has an account.
+    return {
+        "message": "If that address has a password account, a reset link is on its way."
+    }
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+def reset_password(
+    payload: ResetPasswordIn, request: Request, db: Session = Depends(get_db)
+):
+    enforce(request, "reset-password", 10, 3600)
+    auth_service.reset_password(db, payload.token, payload.new_password)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT)
+def verify_email(payload: VerifyEmailIn, db: Session = Depends(get_db)):
+    auth_service.verify_email(db, payload.token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/resend-verification",
+    response_model=MessageOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def resend_verification(
+    payload: ForgotPasswordIn, request: Request, db: Session = Depends(get_db)
+):
+    enforce(request, "resend-verification", 3, 3600, payload.email)
+    auth_service.request_email_verification(db, payload.email)
+    return {
+        "message": "If that address has an unverified account, a new link is on its way."
+    }
 
 
 @router.post("/login", response_model=SessionOut)

@@ -61,7 +61,10 @@ PASS in automated tests:
 * `test_production_requires_a_strong_secret` — `Settings(environment="production",
   jwt_secret="short")` raises.
 
-LIVE verification: **NOT DONE** (not deployed).
+LIVE verification: **PASS** — the release is deployed and a two-account browser
+journey against `https://foctrack.vercel.app` passed 15/15 checks on
+2026-11-27 (signup, session start, refresh persistence, sign-out, isolation,
+wrong password, re-login, read-only email, no console errors).
 
 ## 5. Google sign-in
 
@@ -76,9 +79,10 @@ PARTIAL.
 
 ## 6. Headers and CSP
 
-**NOT DONE.** The policy is written in `vercel.json` (CSP, HSTS, nosniff,
-frame denial, permissions policy, immutable asset caching) but this branch is
-not deployed, so zero-violation browser evidence does not exist yet.
+**PASS.** The policy in `vercel.json` is live: `https://foctrack.vercel.app`
+returns CSP with `frame-ancestors 'none'`, HSTS, nosniff, referrer and
+permissions policies, and the production browser journey produced no console
+errors.
 
 ## 7. CI and Dependabot
 
@@ -86,9 +90,9 @@ not deployed, so zero-violation browser evidence does not exist yet.
 |---|---|---|
 | CI green on `main` | PASS | run 45970944820, all three jobs success |
 | CI covers SQLite, PostgreSQL and frontend | PASS | `.github/workflows/ci.yml` |
-| Dependabot active | PASS | it opened `dependabot/npm_and_yarn/frontend/tailwindcss-4.3.5` |
+| Dependabot does not open update pull requests | PASS | `open-pull-requests-limit: 0`; the queued automated PRs were closed |
 | A failing PR is blocked | **NOT DONE** | branch protection is not enabled; CI reports failure but does not block a merge |
-| Major-version updates are not noisy | **FAIL → fixed** | Dependabot proposed Tailwind 4, which broke the build; major updates are now ignored |
+| Major-version updates are not noisy | **PASS** | automated bumps are disabled and applied manually in reviewed releases |
 
 ## 8. Cold start
 
@@ -122,7 +126,11 @@ are verified:
 
 | Check | Result | Evidence |
 |---|---|---|
-| Backend suite after CSV export | PASS — 77 tests | `pytest` → `77 passed` |
+| Backend suite after timezone and email work | PASS — 83 tests | `pytest` → `83 passed`; `ruff check` clean |
+| Historical days survive a clock change | PASS | `test_stored_offset_keeps_the_historical_day_after_a_clock_change` |
+| Password reset is single-use and revokes sessions | PASS | `test_password_reset_is_single_use_and_rotates_sessions` |
+| Verification links confirm the address | PASS | `test_signup_sends_a_verification_link_that_marks_the_email` |
+| Email endpoints fail closed without a key | PASS | live `POST /auth/forgot-password` → `503`, no fake success |
 | PWA manifest and service worker | PASS | manifest `200`, `display: standalone`, SW active and controlling |
 | No authenticated API response cached | PASS | cache inspection: 30 precached entries, `apiEntries: 0` |
 | Offline app shell | PASS | network disabled, reload rendered the login form |
@@ -130,16 +138,12 @@ are verified:
 
 ## 12. Deployment blockers found
 
-1. **Render will not boot the new API without a signing secret.** Production
-   validation requires `FOCTRACK_JWT_SECRET` of at least 32 characters. The
-   Render CLI cannot set service environment variables, so the owner must add it
-   in the dashboard before the API is redeployed. Until then the new frontend
-   must stay off `main`.
-2. **No Render Git webhook.** Pushes do not deploy the API; deployment is an
+1. **No Render Git webhook.** Pushes do not deploy the API; deployment is an
    explicit `render deploys create <id> --commit <sha> --confirm`.
-3. **Google sign-in is unconfigured** (no OAuth client id).
-4. **No transactional email provider**, so password reset and verification
-   cannot be made live yet; the UI says so instead of pretending.
+2. **Google sign-in is unconfigured** (no OAuth client id).
+3. **No transactional email key**, so password reset and verification are
+   implemented but inactive: production returns `503` until
+   `FOCTRACK_RESEND_API_KEY` is set on Render.
 
 ## 13. Fixes made during this audit
 

@@ -22,7 +22,7 @@ jobs:
       FOCTRACK_JWT_SECRET: ci-only-secret-that-is-long-enough-for-validation
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -67,7 +67,7 @@ jobs:
       FOCTRACK_TEST_DATABASE_URL: postgresql+psycopg://foctrack:foctrack@localhost:5432/foctrack_test
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip

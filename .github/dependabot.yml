@@ -4,7 +4,9 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Dependency updates are applied deliberately in reviewed releases, so
+    # Dependabot must not open automated bump pull requests.
+    open-pull-requests-limit: 0
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
@@ -12,7 +14,9 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Dependency updates are applied deliberately in reviewed releases, so
+    # Dependabot must not open automated bump pull requests.
+    open-pull-requests-limit: 0
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
@@ -20,3 +24,4 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    open-pull-requests-limit: 0
